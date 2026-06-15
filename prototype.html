@@ -1,0 +1,157 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>EduPulse — School Portal</title>
+  <link rel="stylesheet" href="assets/css/main.css">
+</head>
+<body>
+
+  <div id="login-gate">
+    <div class="login-page">
+      <div class="login-brand">
+        <a href="index.html" class="logo" style="margin-bottom:0">
+          <div class="logo-mark">E</div>
+          EduPulse
+        </a>
+        <h1>School portal</h1>
+        <p>One username signs you in. We read your school and your role straight from it — no extra steps. You only see what your role and your school's plan allow.</p>
+        <div class="login-tip">
+          <strong>Your username is <code>ID@SCHOOLCODE</code></strong>
+          <ul class="login-tip-list">
+            <li><strong>Staff</strong> — staff number + school, e.g. <code>0001@GAYAZA</code> (admin)</li>
+            <li><strong>Parents</strong> — your child's student number + school, e.g. <code>2203992@GAYAZA</code></li>
+            <li>The portal you land on is decided by your role automatically.</li>
+          </ul>
+        </div>
+        <p class="text-xs text-muted" style="margin-top:1rem">
+          Platform team? <a href="admin/index.html">Admin portal</a>
+        </p>
+      </div>
+
+      <div class="login-form-wrap">
+        <div class="login-form login-form-wide">
+          <div id="login-banner" class="login-banner" hidden></div>
+
+          <h2>Sign in</h2>
+          <p>Enter your username and password</p>
+
+          <form id="login-form" class="stack" style="gap:0.75rem;margin-top:1rem" autocomplete="on">
+            <label class="field">
+              <span class="field-label">Username</span>
+              <input class="input" id="login-username" name="username" required placeholder="e.g. 0001@GAYAZA" autocapitalize="none" autocomplete="username" spellcheck="false">
+              <span class="text-xs text-muted">Format: <code>ID@SCHOOLCODE</code></span>
+            </label>
+            <label class="field">
+              <span class="field-label">Password</span>
+              <input class="input" id="login-password" name="password" type="password" required placeholder="••••••••" autocomplete="current-password">
+            </label>
+
+            <div id="login-error" class="login-error" hidden></div>
+
+            <button class="btn btn-primary" type="submit" style="width:100%">Sign in</button>
+          </form>
+
+          <details class="demo-credentials" id="demo-credentials">
+            <summary>Demo credentials by school</summary>
+            <div id="demo-credentials-body" class="demo-credentials-body"></div>
+          </details>
+
+          <p class="text-center text-xs text-muted" style="margin-top:0.75rem"><a href="index.html">Back to overview</a></p>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div id="app-shell" style="display:none">
+    <div class="demo-banner">
+      School portal · <span id="banner-school-code"></span> · <a href="index.html">Overview</a>
+    </div>
+
+    <div class="app-shell">
+      <aside class="sidebar">
+        <div class="sidebar-brand">
+          <div class="logo-mark">E</div>
+          <span>EduPulse</span>
+        </div>
+
+        <nav class="sidebar-nav" id="sidebar-nav"></nav>
+        <div class="sidebar-footer" id="sidebar-user">
+          <div class="sidebar-user-compact">
+            <div class="avatar" id="sidebar-user-avatar">U</div>
+            <div style="min-width:0;flex:1">
+              <div class="sidebar-user-name" id="sidebar-user-name">User</div>
+              <div class="sidebar-user-role" id="sidebar-user-role">Role</div>
+            </div>
+          </div>
+          <button type="button" class="btn btn-ghost btn-sm sidebar-logout" id="sidebar-logout-btn">Sign out</button>
+        </div>
+      </aside>
+
+      <div class="main-content">
+        <header class="topbar">
+          <div class="topbar-left">
+            <button class="sidebar-toggle" aria-label="Menu"></button>
+            <div class="breadcrumb" id="breadcrumb"><strong>Dashboard</strong></div>
+            <span class="topbar-school-wrap">
+              <span class="topbar-school" id="topbar-school">School</span>
+              <span class="badge badge-success badge-dot" id="school-status-badge">active</span>
+            </span>
+            <div class="academic-context">
+              <select id="year-selector" aria-label="Academic year"></select>
+              <span class="academic-context-divider"></span>
+              <select id="term-selector" aria-label="Term"></select>
+            </div>
+          </div>
+          <div class="topbar-right">
+            <div class="user-menu">
+              <div class="user-menu-trigger">
+                <div class="avatar avatar-sm" id="topbar-user-avatar">U</div>
+                <div class="user-menu-label">
+                  <span id="topbar-user-name">User</span>
+                  <span class="text-xs text-muted" id="topbar-user-role">Role</span>
+                </div>
+              </div>
+              <button type="button" class="btn btn-ghost btn-sm" id="logout-btn">Sign out</button>
+            </div>
+          </div>
+        </header>
+
+        <main class="page-content">
+          <div id="screen-container"></div>
+        </main>
+      </div>
+    </div>
+  </div>
+
+  <div class="modal-backdrop" id="modal-backdrop">
+    <div class="modal">
+      <div class="modal-header">
+        <h3 id="modal-title">Details</h3>
+        <button class="modal-close" onclick="App.closeModal()">&times;</button>
+      </div>
+      <div class="modal-body" id="modal-body"></div>
+      <div class="modal-footer">
+        <button class="btn btn-secondary btn-sm" onclick="App.closeModal()">Close</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="toast-container" class="toast-container"></div>
+
+  <script src="assets/js/icons.js"></script>
+  <script src="assets/js/charts.js"></script>
+  <script src="assets/js/mock-data.js"></script>
+  <script src="assets/js/store.js"></script>
+  <script src="assets/js/auth.js"></script>
+  <script src="assets/js/app.js"></script>
+  <script>
+    document.querySelectorAll('[data-icon]').forEach(el => {
+      el.innerHTML = Icons[el.dataset.icon] || '';
+    });
+    document.querySelector('.sidebar-toggle').innerHTML = '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" width="20" height="20"><path d="M2 4h12M2 8h12M2 12h12"/></svg>';
+    PortalShell.init();
+  </script>
+</body>
+</html>
