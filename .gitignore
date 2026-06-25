@@ -28,7 +28,6 @@ apps/api/_*.py
 Thumbs.db
 
 UI Ref/
-admin/
 index.html
 prototype.html
 Script.txt
