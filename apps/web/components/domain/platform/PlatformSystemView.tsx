@@ -14,7 +14,7 @@ import { useResetPlatformDataMutation } from "@/store/api/skulpulseApi";
 const CONFIRMATION_PHRASE = "RESET ALL DATA";
 
 export function PlatformSystemView() {
-  const toast = useToast();
+  const { toast } = useToast();
   const [confirmation, setConfirmation] = useState("");
   const [acknowledged, setAcknowledged] = useState(false);
   const [resetData, { isLoading, isError, error }] = useResetPlatformDataMutation();
@@ -34,13 +34,15 @@ export function PlatformSystemView() {
 
     try {
       const result = await resetData({ confirmation: CONFIRMATION_PHRASE }).unwrap();
-      toast.success(
+      toast(
         `Data reset complete. ${result.tables_truncated} tables cleared. Platform admin preserved.`,
+        "success",
       );
       setConfirmation("");
       setAcknowledged(false);
     } catch (e) {
-      toast.error(parseError(e).message);
+      const p = parseError(e);
+      toast(p.message, "error", p.requestId);
     }
   }
 
