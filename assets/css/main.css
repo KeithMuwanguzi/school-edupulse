@@ -1,6 +1,6 @@
 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
 
-/* EduPulse — production admin UI */
+/* SkulPulse — production admin UI */
 :root {
   --brand-hue: 158;
   --surface-0: oklch(0.995 0.004 var(--brand-hue));

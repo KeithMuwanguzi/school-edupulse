@@ -1,0 +1,28 @@
+# Caddy config when production and staging run on SEPARATE AFRICLOUD VPS instances.
+# Copy the relevant file to /etc/caddy/Caddyfile on each server.
+
+# ========== PRODUCTION VPS ==========
+app.skulpulse.com {
+	encode gzip
+	reverse_proxy 127.0.0.1:3005
+}
+
+api.skulpulse.com {
+	encode gzip
+	reverse_proxy 127.0.0.1:5330
+}
+
+skulpulse.com, www.skulpulse.com {
+	redir https://app.skulpulse.com{uri} permanent
+}
+
+# ========== STAGING VPS (separate file on staging machine) ==========
+# staging.app.skulpulse.com {
+# 	encode gzip
+# 	reverse_proxy 127.0.0.1:3005
+# }
+#
+# staging.api.skulpulse.com {
+# 	encode gzip
+# 	reverse_proxy 127.0.0.1:5330
+# }

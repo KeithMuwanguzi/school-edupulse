@@ -1,0 +1,36 @@
+.claude
+
+# Python / API
+apps/api/.venv/
+__pycache__/
+*.pyc
+.pytest_cache/
+.ruff_cache/
+apps/api/.env
+apps/api/.env.docker
+apps/api/.env.production
+apps/api/.env.staging
+apps/api/storage/
+
+# Node / web
+node_modules/
+apps/web/.next/
+apps/web/out/
+apps/web/.env
+apps/web/.env.local
+
+# Logs / scratch
+*.log
+apps/api/_*.py
+
+# OS
+.DS_Store
+Thumbs.db
+
+UI Ref/
+admin/
+index.html
+prototype.html
+Script.txt
+Keys/
+docs/

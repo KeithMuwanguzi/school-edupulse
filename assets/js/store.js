@@ -1,11 +1,11 @@
 /**
- * EduPulse — Shared client store (localStorage)
+ * SkulPulse — Shared client store (localStorage)
  * Single source of truth for schools and module subscriptions.
  * Both /admin and /prototype read and write through here.
  */
 
-const EduStore = {
-  STORAGE_KEY: 'edupulse_store_v1',
+const SkulStore = {
+  STORAGE_KEY: 'skulpulse_store_v1',
 
   SEED_SCHOOLS: [
     {
@@ -151,7 +151,7 @@ const EduStore = {
       this._persist();
     }
     this._applyUrlSchool();
-    this.syncToEdupulse();
+    this.syncToSkulpulse();
     return this._state;
   },
 
@@ -210,7 +210,7 @@ const EduStore = {
 
   _persist() {
     localStorage.setItem(this.STORAGE_KEY, JSON.stringify(this._state));
-    this.syncToEdupulse();
+    this.syncToSkulpulse();
   },
 
   _applyUrlSchool() {
@@ -318,7 +318,7 @@ const EduStore = {
       return { ok: false, error: 'INVALID_SCHOOL', message: 'School code not recognized. Check with your administrator.' };
     }
     if (school.status === 'suspended' || school.status === 'inactive') {
-      return { ok: false, error: 'SCHOOL_INACTIVE', message: 'This school portal is not active. Contact EduPulse support.' };
+      return { ok: false, error: 'SCHOOL_INACTIVE', message: 'This school portal is not active. Contact SkulPulse support.' };
     }
 
     const emailNorm = (email || '').trim().toLowerCase();
@@ -372,7 +372,7 @@ const EduStore = {
       return { ok: false, error: 'INVALID_SCHOOL', message: `School "${code}" not recognised. Check the part after the @.` };
     }
     if (school.status === 'suspended' || school.status === 'inactive') {
-      return { ok: false, error: 'SCHOOL_INACTIVE', message: 'This school portal is not active. Contact EduPulse support.' };
+      return { ok: false, error: 'SCHOOL_INACTIVE', message: 'This school portal is not active. Contact SkulPulse support.' };
     }
 
     const user = this._state.users.find(u =>
@@ -410,7 +410,7 @@ const EduStore = {
 
   _normalizeModules(moduleIds) {
     let ids = moduleIds === 'all'
-      ? EDUPULSE.modules.map(m => m.id)
+      ? SKULPULSE.modules.map(m => m.id)
       : Array.isArray(moduleIds) ? [...moduleIds] : [];
     if (!ids.includes('core')) ids.unshift('core');
     return [...new Set(ids)];
@@ -436,13 +436,13 @@ const EduStore = {
     if (this._state.platformAudit.length > 100) this._state.platformAudit.pop();
   },
 
-  syncToEdupulse() {
-    if (typeof EDUPULSE === 'undefined') return;
+  syncToSkulpulse() {
+    if (typeof SKULPULSE === 'undefined') return;
     const active = this.getActiveSchool();
     if (active) {
-      EDUPULSE.school = { ...active, subscribedModules: this._normalizeModules(active.subscribedModules) };
+      SKULPULSE.school = { ...active, subscribedModules: this._normalizeModules(active.subscribedModules) };
     }
-    EDUPULSE.platformSchools = this._state.schools.map(s => ({
+    SKULPULSE.platformSchools = this._state.schools.map(s => ({
       id: s.id,
       name: s.name,
       district: s.district,
@@ -587,6 +587,6 @@ const EduStore = {
   },
 
   getModulePresets() {
-    return EDUPULSE.exampleModuleSets || [];
+    return SKULPULSE.exampleModuleSets || [];
   }
 };

@@ -1,0 +1,104 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: skulpulse-postgres
+    environment:
+      POSTGRES_USER: skulpulse
+      POSTGRES_PASSWORD: skulpulse
+      POSTGRES_DB: skulpulse
+    # Host 5432/6432 are often occupied by a local Postgres/PgBouncer install,
+    # so we publish on offset host ports. Container-internal ports are unchanged.
+    ports:
+      - "55432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U skulpulse -d skulpulse"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  pgbouncer:
+    image: edoburu/pgbouncer:latest
+    container_name: skulpulse-pgbouncer
+    environment:
+      # PgBouncer authenticates clients as — and connects upstream as — the
+      # non-superuser app role (created by the API migration on first boot).
+      DB_USER: skulpulse_app
+      DB_PASSWORD: skulpulse_app
+      DB_HOST: postgres
+      DB_NAME: skulpulse
+      LISTEN_PORT: "6432"
+      POOL_MODE: transaction
+      MAX_CLIENT_CONN: "1000"
+      DEFAULT_POOL_SIZE: "25"
+      # SCRAM passthrough via auth_query: PgBouncer fetches each role's SCRAM
+      # verifier from pg_authid through a SECURITY DEFINER function (created by
+      # the API migration) and reuses the client's SCRAM upstream.
+      AUTH_TYPE: scram-sha-256
+      AUTH_QUERY: SELECT username, password FROM public.pgbouncer_get_auth($1)
+    ports:
+      - "56432:6432"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -h 127.0.0.1 -p 6432 -U skulpulse_app"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  redis:
+    image: redis:7-alpine
+    container_name: skulpulse-redis
+    command: ["redis-server", "--appendonly", "yes"]
+    ports:
+      - "6380:6379"
+    volumes:
+      - redisdata:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  api:
+    build:
+      context: ./apps/api
+      dockerfile: Dockerfile
+    container_name: skulpulse-api
+    env_file:
+      - ./apps/api/.env.docker
+    ports:
+      - "5330:8000"   # host 5330 → container 8000 (uvicorn must listen on 8000)
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      pgbouncer:
+        condition: service_started
+    # Migrations run against direct Postgres (5432); app traffic via PgBouncer (6432).
+    command: >
+      sh -c "alembic upgrade head &&
+             python -m scripts.seed &&
+             uvicorn app.main:app --host 0.0.0.0 --port 8000"
+    volumes:
+      - media_storage:/app/storage
+
+  web:
+    build:
+      context: ./apps/web
+      dockerfile: Dockerfile
+      args:
+        NEXT_PUBLIC_API_URL: http://localhost:5330/api/v1
+    container_name: skulpulse-web
+    ports:
+      - "3005:3000"
+    depends_on:
+      - api
+
+volumes:
+  pgdata:
+  redisdata:
+  media_storage:

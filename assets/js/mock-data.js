@@ -1,5 +1,5 @@
 /**
- * EduPulse Uganda — Mock Data Layer
+ * SkulPulse Uganda — Mock Data Layer
  * Maps 1:1 to future API entities. Use as dev reference.
  *
  * Student / performance / fee data is generated deterministically from a
@@ -7,8 +7,8 @@
  * Aggregations live in `Analytics` and power dashboards + AI insights.
  */
 
-const EDUPULSE = {
-  /** Active tenant — populated by EduStore.syncToEdupulse() */
+const SKULPULSE = {
+  /** Active tenant — populated by SkulStore.syncToSkulpulse() */
   school: {
     id: "sch-001",
     name: "Loading…",
@@ -16,7 +16,7 @@ const EDUPULSE = {
     billingModel: "module-based"
   },
 
-  /** All tenants summary — populated by EduStore */
+  /** All tenants summary — populated by SkulStore */
   platformSchools: [],
 
   academicYears: [
@@ -95,7 +95,7 @@ const EDUPULSE = {
   ],
 
   roles: [
-    { id: "platform-admin", name: "Platform Admin", description: "EduPulse super admin — manages all schools" },
+    { id: "platform-admin", name: "Platform Admin", description: "SkulPulse super admin — manages all schools" },
     { id: "school-admin", name: "School Administrator", description: "Full access to subscribed modules" },
     { id: "deputy-head", name: "Deputy Head Teacher", description: "Academic oversight, limited admin" },
     { id: "teacher", name: "Teacher", description: "Classes, assessment, attendance" },
@@ -448,7 +448,7 @@ const DataEngine = (() => {
       .sort((a, b) => b.riskScore - a.riskScore || a.average - b.average)
       .map((s) => buildInsight(s));
 
-    const termLabel = (EDUPULSE.terms[yearId] || []).find((t) => t.id === termId)?.label || "Term 2";
+    const termLabel = (SKULPULSE.terms[yearId] || []).find((t) => t.id === termId)?.label || "Term 2";
     const flagship = students.filter((s) => s.class === "S.4 West").sort((a, b) => a.position - b.position)[0] || students[0];
     const reportCardSample = flagship ? buildReportCard(flagship, termLabel, yr) : null;
 
@@ -536,20 +536,20 @@ const DataEngine = (() => {
     return _periods[k] || (_periods[k] = buildPeriod(yearId, termId));
   }
 
-  /** Swap EDUPULSE entity arrays to the requested academic period. */
+  /** Swap SKULPULSE entity arrays to the requested academic period. */
   function setPeriod(yearId, termId) {
     const d = getPeriod(yearId, termId);
-    EDUPULSE.students = d.students;
-    EDUPULSE.classes = d.classes;
-    EDUPULSE.feeRecords = d.feeRecords;
-    EDUPULSE.aiInsights = d.aiInsights;
-    EDUPULSE.reportCardSample = d.reportCardSample;
-    EDUPULSE.activePeriod = { yearId, termId };
+    SKULPULSE.students = d.students;
+    SKULPULSE.classes = d.classes;
+    SKULPULSE.feeRecords = d.feeRecords;
+    SKULPULSE.aiInsights = d.aiInsights;
+    SKULPULSE.reportCardSample = d.reportCardSample;
+    SKULPULSE.activePeriod = { yearId, termId };
     // refresh headline stats from the live dataset
     const sa = Analytics.schoolAverage();
     const fin = Analytics.finance();
-    EDUPULSE.dashboardStats["school-admin"] = {
-      students: 1247, teachers: EDUPULSE.teachers.length, classes: EDUPULSE.classes.length,
+    SKULPULSE.dashboardStats["school-admin"] = {
+      students: 1247, teachers: SKULPULSE.teachers.length, classes: SKULPULSE.classes.length,
       feeCollection: fin.rate, attendanceToday: sa.attendance, atRiskStudents: sa.atRisk, average: sa.average
     };
     return d;
@@ -563,7 +563,7 @@ const DataEngine = (() => {
    ============================================================ */
 
 const Analytics = {
-  all() { return EDUPULSE.students || []; },
+  all() { return SKULPULSE.students || []; },
 
   byLevel() {
     const order = ["S.1", "S.2", "S.3", "S.4", "S.5", "S.6"];
@@ -584,7 +584,7 @@ const Analytics = {
   },
 
   byClass(level = null) {
-    return (EDUPULSE.classes || [])
+    return (SKULPULSE.classes || [])
       .filter((c) => !level || c.level === level)
       .map((c) => ({
         id: c.id, name: c.name, level: c.level, stream: c.stream,
@@ -683,7 +683,7 @@ const Analytics = {
   },
 
   finance() {
-    const recs = EDUPULSE.feeRecords || [];
+    const recs = SKULPULSE.feeRecords || [];
     const billed = recs.reduce((a, r) => a + r.termFee, 0);
     const collected = recs.reduce((a, r) => a + r.paid, 0);
     const outstanding = billed - collected;
@@ -703,26 +703,26 @@ const Analytics = {
 /* ---- Build the default period now (browser only; safe if no window) ---- */
 (function bootstrapData() {
   // Period-independent entities
-  EDUPULSE.teachers = DataEngine.statics.teachers;
-  EDUPULSE.subjects = DataEngine.statics.subjects;
-  EDUPULSE.assessments = DataEngine.statics.assessments;
+  SKULPULSE.teachers = DataEngine.statics.teachers;
+  SKULPULSE.subjects = DataEngine.statics.subjects;
+  SKULPULSE.assessments = DataEngine.statics.assessments;
   // Default to the active term (Term 2, 2025)
   DataEngine.setPeriod("ay-2025", "t2-2025");
 })();
 
 /** Resolve module IDs — "all" expands to full catalog */
 function resolveModuleIds(moduleIds) {
-  if (moduleIds === "all") return EDUPULSE.modules.map(m => m.id);
+  if (moduleIds === "all") return SKULPULSE.modules.map(m => m.id);
   return moduleIds;
 }
 
 /** Sum module prices + platform base fee for a term invoice */
 function calculateTermBill(moduleIds) {
   const ids = resolveModuleIds(moduleIds);
-  const moduleTotal = EDUPULSE.modules
+  const moduleTotal = SKULPULSE.modules
     .filter(m => ids.includes(m.id))
     .reduce((sum, m) => sum + m.price, 0);
-  return EDUPULSE.billing.platformBaseFee + moduleTotal;
+  return SKULPULSE.billing.platformBaseFee + moduleTotal;
 }
 
 function formatUGX(amount) {
@@ -733,9 +733,9 @@ function formatUGX(amount) {
 
 function getModuleBreakdown(moduleIds) {
   const ids = resolveModuleIds(moduleIds);
-  const lines = EDUPULSE.modules.filter(m => ids.includes(m.id) && m.price > 0);
+  const lines = SKULPULSE.modules.filter(m => ids.includes(m.id) && m.price > 0);
   return {
-    baseFee: EDUPULSE.billing.platformBaseFee,
+    baseFee: SKULPULSE.billing.platformBaseFee,
     modules: lines,
     moduleTotal: lines.reduce((s, m) => s + m.price, 0),
     total: calculateTermBill(ids)

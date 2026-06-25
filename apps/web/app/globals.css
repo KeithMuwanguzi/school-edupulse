@@ -1,0 +1,191 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  color-scheme: light;
+}
+
+html,
+body {
+  @apply text-slate-900 antialiased;
+}
+
+/* Shared canvas — login + authenticated app shells.
+   Warm stone base with quiet teal + marigold light. */
+.app-canvas,
+.auth-bg-tenant {
+  background:
+    radial-gradient(720px 440px at 94% 6%, rgb(32 125 107 / 0.10) 0%, transparent 56%),
+    radial-gradient(560px 380px at 2% 96%, rgb(229 166 39 / 0.10) 0%, transparent 55%),
+    linear-gradient(168deg, #f5f3ee 0%, #efece4 100%);
+  background-attachment: fixed;
+  min-height: 100vh;
+}
+
+body {
+  @apply bg-white;
+}
+
+/* Accessible focus ring for all interactive elements. */
+*:focus-visible {
+  @apply outline-none ring-2 ring-brand-500 ring-offset-2 ring-offset-white;
+}
+
+/* Compact, quiet scrollbars inside the shell. */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: #d6d0c4 transparent;
+}
+
+/* Auth screen transitions */
+@keyframes authIn {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.animate-auth-in {
+  animation: authIn 0.32s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+@keyframes floatY {
+  0%,
+  100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(-7px);
+  }
+}
+
+.animate-float {
+  animation: floatY 5s ease-in-out infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .animate-auth-in,
+  .animate-float,
+  .animate-fade-rise {
+    animation: none !important;
+  }
+}
+
+/* --- Auth screens (split layout, reference-inspired) --- */
+
+.auth-bg-platform {
+  background:
+    radial-gradient(640px 400px at 88% 12%, rgb(32 125 107 / 0.26) 0%, transparent 55%),
+    radial-gradient(520px 360px at 8% 88%, rgb(229 166 39 / 0.16) 0%, transparent 55%),
+    linear-gradient(165deg, #12110d 0%, #1e1c17 48%, #12110d 100%);
+}
+
+.auth-split-panel {
+  clip-path: ellipse(118% 108% at 100% 50%);
+}
+
+.auth-input {
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+.auth-input:focus {
+  box-shadow: 0 1px 0 0 rgb(21 101 90 / 0.35);
+}
+
+.auth-textarea {
+  transition: box-shadow 0.15s ease, background-color 0.15s ease;
+}
+
+@media (max-width: 767px) {
+  .auth-card {
+    border-radius: 1.25rem;
+  }
+}
+
+/* App shell — warm light sidebar with a quiet teal wash at the crown. */
+.app-sidebar {
+  background:
+    radial-gradient(ellipse 120% 50% at 50% -10%, rgb(32 125 107 / 0.08) 0%, transparent 54%),
+    linear-gradient(180deg, #fbfaf7 0%, #f4f2ec 100%);
+  box-shadow: inset -1px 0 0 rgb(30 28 23 / 0.07);
+}
+
+.app-sidebar-scroll {
+  scrollbar-color: #d6d0c4 transparent;
+}
+
+.app-sidebar-scroll::-webkit-scrollbar {
+  width: 3px;
+}
+
+.app-sidebar-scroll::-webkit-scrollbar-thumb {
+  background: #d6d0c4;
+  border-radius: 999px;
+}
+
+.app-sidebar a:focus-visible,
+.app-sidebar button:focus-visible {
+  @apply outline-none ring-2 ring-brand-500/40 ring-offset-2 ring-offset-white;
+}
+
+.app-topbar {
+  background: rgb(251 250 247 / 0.85);
+  backdrop-filter: blur(10px);
+  border-bottom: 1px solid rgb(30 28 23 / 0.07);
+  box-shadow: 0 1px 0 rgb(255 255 255 / 0.9) inset;
+}
+
+@media print {
+  @page {
+    size: A4 portrait;
+    margin: 0;
+  }
+
+  .app-sidebar,
+  .app-topbar,
+  button,
+  .report-card-no-print {
+    display: none !important;
+  }
+
+  /* Isolate report cards: hide everything, then reveal only the print pages. */
+  body.printing-report-cards * {
+    visibility: hidden !important;
+  }
+
+  body.printing-report-cards .report-card-page,
+  body.printing-report-cards .report-card-page * {
+    visibility: visible !important;
+  }
+
+  body.printing-report-cards .report-card-page {
+    position: absolute;
+    left: 0;
+    top: 0;
+    margin: 0 !important;
+    max-width: none !important;
+    width: 210mm !important;
+  }
+
+  .report-card-print {
+    width: 210mm !important;
+    min-height: 297mm !important;
+    box-shadow: none !important;
+    ring: 0 !important;
+    border: none !important;
+  }
+
+  main {
+    padding: 0 !important;
+  }
+
+  html,
+  body {
+    background: #ffffff !important;
+  }
+}

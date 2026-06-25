@@ -1,235 +1,112 @@
-# EduPulse Uganda — Pitch Prototype
+# SkulPulse Uganda
 
-HTML-only interactive prototype for pitching school directors and guiding development. No backend, no build step.
+Modular, multi-tenant school-management SaaS for **Ugandan primary schools** (P1–P7).
 
-## Quick Start
+- **Production app** — `apps/api` (FastAPI) + `apps/web` (Next.js). Phase 1 is built and tested.
+- **Reference** — [`docs/BUILD-GUIDE.md`](docs/BUILD-GUIDE.md) (source of truth) and the HTML prototype at the repo root (`prototype.html`, `admin/`) for UX only.
 
-Open in any browser:
+Stack: FastAPI · PostgreSQL 16 · PgBouncer · Redis 7 · Next.js 14 (App Router, TS) · Tailwind · Redux Toolkit (RTK Query).
 
-1. **Pitch page:** `index.html` — marketing landing for directors
-2. **Admin portal:** `admin/index.html` — onboard schools, assign modules
-3. **School demo:** `prototype.html` — full clickable app per tenant
+---
 
-Or serve locally:
-
-```bash
-# Python (PowerShell)
-Set-Location E:\Code\School; python -m http.server 8080
-
-# Node (npx)
-npx serve .
-```
-
-Then visit `http://localhost:8080`
-
-## School portal login
-
-**One username, no separate school-code step.** A username is `ID@SCHOOLCODE`; the system reads the
-school from the code and the role from the matched account, then routes the user to the right portal
-(parents land on the parent portal — there is no student portal).
-
-**Sign-in flow** (`prototype.html`): user enters **username** + **password**. `EduStore.authenticateByUsername()`
-splits on the last `@`, finds the school by code, matches the account by `loginId`, verifies the password,
-and stores a session (`userId`, `schoolId`, `roleId`, `username`, `loginId`). RBAC + module gates apply.
-
-**Login id convention** (`EduStore.STAFF_LOGIN_IDS` / `_parentLoginId`):
-
-| Role | Login id | Example username |
-|------|----------|------------------|
-| School admin | `0001` | `0001@GAYAZA` |
-| Deputy head | `0002` | `0002@GAYAZA` |
-| Teacher | `0003` | `0003@GAYAZA` |
-| Bursar | `0004` | `0004@GAYAZA` |
-| Parent | 7-digit **student number** | `2203992@GAYAZA` |
-
-Password pattern for auto-created accounts: `{SCHOOLCODE}@{role}` (e.g. `MENGO@teacher`). Expand
-“Demo credentials by school” on the login page (or Admin → School detail → Portal access) for exact values.
-Prefill links: `prototype.html?u=0001@SMACK` (full username) or `?code=SMACK` (defaults to the admin username).
-
-**Future backend mapping:** `authenticateByUsername()` → `POST /auth/login` with `{ username, password }`;
-parse tenant from the code, return a JWT with `tenantId` + `roleId`. `PortalAuth` session → httpOnly cookie or bearer token.
-
-**School self-service (school-admin):** Settings → School profile, preferences, portal accounts list. Subscriptions → toggle modules with live billing; changes persist to shared store and sync with admin portal.
-
-## Pitch Flow (Recommended)
-
-1. Start on `index.html` — walk through problem, features, pricing, comparison table
-2. Open **Admin portal** — show onboarding a new school and toggling modules
-3. Click **Open school portal** for that tenant (or use `prototype.html?school=sch-003`)
-4. Demo as **School Administrator** — sidebar only shows subscribed modules
-5. Switch to **Parent** in top bar — show report card portal and MoMo fee payment
-6. Switch to **Teacher** — show limited nav (RBAC in action)
-7. Navigate to a module the school does not subscribe to (e.g. Library for Mengo) — lock overlay
-8. Open **Module Subscriptions** — invoice matches admin assignment
-9. Back in admin — enable AI Analytics, refresh school tab — nav updates via shared store
-
-## Multi-Tenant Simulation
-
-Both portals read/write the same `localStorage` key (`edupulse_store_v1`):
-
-| Portal | Path | Purpose |
-|--------|------|---------|
-| Admin | `admin/index.html` | CRUD schools, module picker, billing, audit |
-| School | `prototype.html` | Role-based demo scoped to active school |
-
-**Workflow:** Admin assigns modules → school portal sidebar and locks reflect that subscription. Use two browser tabs (admin + prototype) for live demos.
-
-Seed schools (reset via Admin → Settings):
-
-| ID | School | Modules |
-|----|--------|---------|
-| `sch-001` | St. Mary's College Kisubi | Full stack (no library/transport add-ons) |
-| `sch-002` | Gayaza High School | All catalog modules |
-| `sch-003` | Mengo Senior School | Academic core only (6 modules) |
-| `sch-004` | Namilyango College | Trial — no AI |
-
-URL params:
-
-- `prototype.html?school=sch-003` — open portal as that tenant
-- `admin/index.html?school=sch-001` — jump to school detail
-
-## File Structure → Future Backend Mapping
+## Monorepo layout
 
 ```
-School/
-├── index.html                 → Marketing site
-├── admin/index.html           → Platform admin SPA shell
-├── prototype.html             → School tenant app shell
-├── assets/
-│   ├── css/main.css           → Design tokens + components + bold/vivid chart layer
-│   └── js/
-│       ├── icons.js           → Inline SVG icon set
-│       ├── charts.js          → Dependency-free animated SVG charts (bars, line, donut, gauge, ring, sparkline, heatmap, hbars)
-│       ├── mock-data.js       → Catalog + billing + DataEngine (seeded generator) + Analytics (aggregations)
-│       ├── store.js           → Shared tenant store + portal users
-│       ├── auth.js            → Login session (future: JWT)
-│       ├── admin-app.js       → Admin router + screens
-│       └── app.js             → School portal router + screens
+apps/
+  api/    FastAPI — auth, onboarding, modules, logging, RLS multi-tenancy
+  web/    Next.js — platform admin (/admin) + tenant portal (/app)
+docs/BUILD-GUIDE.md
+docker-compose.yml
 ```
 
-### Data engine & analytics (mock-data.js)
+---
 
-Student/performance/fee data is **generated deterministically** from a seeded PRNG (`DataEngine.build()`),
-so the demo is rich (~90 students across S.1–S.6, per-subject score history, attendance, fees, computed
-UNEB division + risk level) but stable across reloads. The `Analytics` object derives every chart and AI
-insight from this dataset (`byClass`, `byLevel`, `riskDistribution`, `divisionForecast`, `subjectHeatmap`,
-`finance`, `watchlist`, `topPerformers`, …).
+## Quick start (Docker Compose)
 
-**Future backend mapping:** `DataEngine` → seed migrations / fixtures; `Analytics` methods → SQL aggregate
-queries or a reporting service. AI insights (`buildInsight`) → the model-serving endpoint that returns
-risk score, predicted division, factors, and recommendations per student.
+**Full walkthrough:** [`docs/RUN-ON-DOCKER.md`](docs/RUN-ON-DOCKER.md) — prerequisites, sign-in, onboard a school, troubleshooting.
 
-### Screen IDs → Future Routes
+Brings up Postgres + PgBouncer + Redis + API + Web. Migrations and seed run automatically on API start.
 
-| Prototype Screen | Future Route | Module ID |
-|-----------------|--------------|-----------|
-| `dashboard` | `/dashboard` | `core` |
-| `students` | `/students` | `students` |
-| `teachers` | `/teachers` | `teachers` |
-| `admissions` | `/admissions` | `admissions` |
-| `academic-structure` | `/academics` | `academics` |
-| `assessment` | `/assessment` | `assessment` |
-| `report-cards` | `/report-cards` | `reportcards` |
-| `timetable` | `/timetable` | `timetable` |
-| `attendance` | `/attendance` | `attendance` |
-| `ai-analytics` | `/ai-analytics` | `ai-analytics` |
-| `finance` | `/finance` | `finance` |
-| `communication` | `/communication` | `communication` |
-| `library` | `/library` | `library` |
-| `transport` | `/transport` | `transport` |
-| `hostel` | `/hostel` | `hostel` |
-| `modules` | `/settings/subscriptions` | `core` |
-| `rbac` | `/settings/roles` | `core` |
-| `academic-years` | `/settings/academic-years` | `core` |
-| `audit-log` | `/settings/audit-log` | `core` |
-| `settings` | `/settings` | `core` |
+```powershell
+docker compose up -d --build
+```
 
-### Admin Screens → Future Routes
+| Service | URL |
+|---------|-----|
+| Web | http://localhost:3005/ |
+| School login | http://localhost:3005/ *(or `/login` redirects here)* |
+| Platform console *(internal)* | http://localhost:3005/platform/sign-in |
+| API docs | http://localhost:5330/api/v1/docs |
+| Postgres (direct, migrations) | localhost:55432 |
+| PgBouncer (app traffic) | localhost:56432 |
+| Redis | localhost:6380 |
 
-| Admin Screen | Future Route |
-|--------------|--------------|
-| `dashboard` | `/admin` |
-| `schools` | `/admin/schools` |
-| `onboard` | `/admin/schools/new` |
-| `school-detail` | `/admin/schools/:id` |
-| `billing` | `/admin/billing` |
-| `catalog` | `/admin/modules` |
-| `audit` | `/admin/audit` |
-| `settings` | `/admin/settings` |
+> Web/API use host ports **3005** and **5330** (not 3000/8000) to avoid clashes. Run `docker compose ps` to confirm. Web mapping is `3005:3000` — Next.js listens on 3000 inside the container.
 
-### Mock Data Entities → Future Database Tables
+**Default platform admin** (change in production): `admin@skulpulse.ug` / value of `PLATFORM_ADMIN_PASSWORD`.
 
-| Mock Object | Future Table/Entity |
-|-------------|---------------------|
-| `EduStore` / `EDUPULSE.school` | `schools` |
-| `school.subscribedModules` | `school_module_subscriptions` |
-| `EduStore.platformAudit` | `platform_audit_logs` |
-| `EDUPULSE.academicYears` | `academic_years` |
-| `EDUPULSE.terms` | `terms` |
-| `EDUPULSE.billing` | `billing_config` |
-| `EDUPULSE.modules` | `modules` (catalog) |
-| `EDUPULSE.roles` | `roles` |
-| `EDUPULSE.rbacMatrix` | `role_module_permissions` |
-| `EDUPULSE.students` | `students` (+ `student_guardians`) |
-| `EDUPULSE.teachers` | `staff` |
-| `EDUPULSE.classes` | `classes` |
-| `EDUPULSE.subjects` | `subjects` |
-| `EDUPULSE.assessments` | `assessments` |
-| `EDUPULSE.reportCardSample` | `report_cards` + `report_card_grades` |
-| `EDUPULSE.aiInsights` | `ai_student_insights` |
-| `EDUPULSE.feeRecords` | `fee_invoices` + `fee_payments` |
-| `EDUPULSE.admissionsPipeline` | `admission_applications` |
-| `EDUPULSE.auditLog` | `audit_logs` |
+---
 
-## Key Architecture Decisions (Encoded in Prototype)
+## Local development
 
-### 1. Module Subscription Gate
-- Platform admin assigns modules per school (`EduStore.setSchoolModules`)
-- School portal reads active tenant via `EduStore.syncToEdupulse()` → `EDUPULSE.school`
-- Unsubscribed modules are hidden from sidebar; direct navigation shows lock overlay
-- Implemented in `App.hasModuleAccess()`, `App.getNavGroups()`, `App.navigate()`
+### 1. Infrastructure
 
-### 2. RBAC (Role-Based Access Control)
-- Permissions are **module-scoped** (`view`, `create`, `edit`, `delete`, `approve`, `export`)
-- RBAC only applies within subscribed modules
-- Role switcher in top bar demonstrates different nav + access levels
+```powershell
+docker compose up -d postgres pgbouncer redis
+```
 
-### 3. Academic Year / Term Isolation
-- Year + Term selectors in top bar scope ALL data queries
-- Archived years are read-only (see Academic Years screen)
+### 2. API
 
-### 4. Multi-Tenant Platform
-- Dedicated admin portal at `/admin/` for onboarding and billing
-- Each school is a tenant with isolated module entitlements
-- Demo student/teacher data is shared across tenants (prototype only)
+```powershell
+cd apps/api
+python -m venv .venv
+.\.venv\Scripts\python.exe -m pip install -e ".[dev]"
+Copy-Item .env.example .env
+.\.venv\Scripts\python.exe -m alembic upgrade head      # migrations → direct Postgres
+.\.venv\Scripts\python.exe -m scripts.seed              # roles, modules, admin, districts
+.\.venv\Scripts\python.exe -m uvicorn app.main:app --reload --port 8000
+```
 
-## Differentiators vs Existing Ugandan Systems
+### 3. Web
 
-- Modular pricing (pay for what you use — no per-student fees)
-- AI at-risk prediction and UCE/UACE forecasting
-- Parent portal with digital report cards
-- MTN MoMo / Airtel Money native fee payments
-- Strict term/year data isolation
-- Custom RBAC per school
-- MoES/EMIS compliance exports
-- UNEB-standard grading (CA 40% + Exam 60%)
-- SMS for parents without smartphones
+```powershell
+cd apps/web
+npm install
+npm run dev    # http://localhost:3000
+```
 
-## Customization Before Pitch
+---
 
-**Schools & modules:** Use the admin portal, or edit `EduStore.SEED_SCHOOLS` in `assets/js/store.js`.
+## Testing
 
-**Catalog pricing:** Edit `assets/js/mock-data.js` → `modules` and `billing.platformBaseFee`.
+The suite runs against a dedicated `skulpulse_test` database (created/migrated automatically) on **direct Postgres** so PostgreSQL RLS is genuinely exercised.
 
-**Demo entities:** Edit students, teachers, etc. in `mock-data.js` (shared across tenants in prototype).
+```powershell
+cd apps/api
+.\.venv\Scripts\python.exe -m pytest -q
+```
 
-## Next Development Phase
+Covers: RLS isolation, schema invariants, request/error logging, platform & tenant auth + refresh rotation/reuse detection, onboarding idempotency, module gating, and API-level tenant isolation.
 
-When moving from prototype to production:
+Web: `npm run typecheck` and `npm run build` in `apps/web`.
 
-1. Replace `EduStore` localStorage with REST/GraphQL API (`/admin/*`, `/tenant/*`)
-2. Extract design tokens from `main.css` into your component library
-3. Convert mock shapes into TypeScript interfaces / Prisma schema
-4. Map each `render*()` function to a React/Vue page component
-5. Implement API middleware: `(tenantId, moduleId, permission) => boolean`
-6. Add academic context middleware: all queries include `academicYearId` + `termId`
+---
+
+## Architecture highlights (see BUILD-GUIDE for detail)
+
+- **Multi-tenancy** — one DB, `tenant_id` on every school-owned row, **Row-Level Security** enforced via a non-superuser app role (`skulpulse_app`) + per-request `app.current_tenant_id` GUC; platform routes use an explicit RLS bypass GUC. Every tenant index leads with `tenant_id`.
+- **Auth** — bcrypt (cost 12), JWT access (15m) + rotating refresh (7d) with reuse detection; tenant login is `loginId@SCHOOLCODE`.
+- **Module entitlements** — middleware gates unsubscribed modules (`403 MODULE_NOT_SUBSCRIBED`); entitlements cached in Redis and carried in the JWT.
+- **Idempotency** — `Idempotency-Key` on onboard/module/profile mutations (Redis + `idempotency_records`).
+- **Observability** — every request writes `api_request_logs`; errors write `error_logs`; append-only `audit_logs`. All correlated by `X-Request-ID`. Log tables are month-partitioned. Structured JSON logs to stdout.
+- **Connection management** — PgBouncer (transaction mode) via SCRAM passthrough; `statement_timeout` set on the app role.
+
+---
+
+## HTML prototype (pitch demo, no backend)
+
+```powershell
+python -m http.server 8080
+```
+
+`index.html` (pitch) · `admin/index.html` (onboarding) · `prototype.html` (school portal). UX reference only — not used by the production app.

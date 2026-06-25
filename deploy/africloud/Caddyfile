@@ -1,0 +1,33 @@
+# Host-level Caddy config for skulpulse.com on AFRICLOUD VPS.
+# Install: sudo apt install caddy
+# Copy to /etc/caddy/Caddyfile and run: sudo systemctl reload caddy
+#
+# Requires DNS A records pointing at this server's public IPv4.
+# Caddy obtains Let's Encrypt certificates automatically.
+
+# --- Production ---
+app.skulpulse.com {
+	encode gzip
+	reverse_proxy 127.0.0.1:3005
+}
+
+api.skulpulse.com {
+	encode gzip
+	reverse_proxy 127.0.0.1:5330
+}
+
+# Apex + www → production app
+skulpulse.com, www.skulpulse.com {
+	redir https://app.skulpulse.com{uri} permanent
+}
+
+# --- Staging (omit this block on a staging-only VPS) ---
+staging.app.skulpulse.com {
+	encode gzip
+	reverse_proxy 127.0.0.1:3006
+}
+
+staging.api.skulpulse.com {
+	encode gzip
+	reverse_proxy 127.0.0.1:5331
+}

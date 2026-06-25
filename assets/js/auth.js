@@ -1,25 +1,25 @@
 /**
- * EduPulse — School portal authentication (session)
+ * SkulPulse — School portal authentication (session)
  * Future: replace authenticate() backend with JWT / OAuth.
  */
 
 const PortalAuth = {
-  SESSION_KEY: 'edupulse_session_v1',
+  SESSION_KEY: 'skulpulse_session_v1',
 
   login(username, password) {
-    const result = EduStore.authenticateByUsername(username, password);
+    const result = SkulStore.authenticateByUsername(username, password);
     if (!result.ok) return result;
 
     sessionStorage.setItem(this.SESSION_KEY, JSON.stringify(result.session));
-    sessionStorage.removeItem('edupulse_role');
-    EduStore.setActiveSchool(result.session.schoolId);
-    EduStore.syncToEdupulse();
+    sessionStorage.removeItem('skulpulse_role');
+    SkulStore.setActiveSchool(result.session.schoolId);
+    SkulStore.syncToSkulpulse();
     return result;
   },
 
   logout(reason = 'signed_out') {
     sessionStorage.removeItem(this.SESSION_KEY);
-    sessionStorage.removeItem('edupulse_role');
+    sessionStorage.removeItem('skulpulse_role');
     return reason;
   },
 
@@ -40,8 +40,8 @@ const PortalAuth = {
     const session = this.getSession();
     if (!session?.userId) return null;
 
-    const user = EduStore.getUser(session.userId);
-    const school = EduStore.getSchool(session.schoolId);
+    const user = SkulStore.getUser(session.userId);
+    const school = SkulStore.getSchool(session.schoolId);
     if (!user || user.status !== 'active' || !school) {
       this.logout('invalid');
       return null;
@@ -51,13 +51,13 @@ const PortalAuth = {
       return null;
     }
 
-    EduStore.setActiveSchool(session.schoolId);
-    EduStore.syncToEdupulse();
+    SkulStore.setActiveSchool(session.schoolId);
+    SkulStore.syncToSkulpulse();
     return { ...session, name: user.name, email: user.email, roleId: user.roleId };
   },
 
   getRoleName(roleId) {
-    return EDUPULSE.roles.find(r => r.id === roleId)?.name || roleId;
+    return SKULPULSE.roles.find(r => r.id === roleId)?.name || roleId;
   }
 };
 
@@ -66,14 +66,14 @@ const PortalAuth = {
  */
 const PortalShell = {
   init() {
-    EduStore.init();
+    SkulStore.init();
     this.bindLoginForm();
     this.prefillFromUrl();
 
-    const logoutReason = sessionStorage.getItem('edupulse_logout_reason');
+    const logoutReason = sessionStorage.getItem('skulpulse_logout_reason');
     if (logoutReason) {
       this.showLoginMessage(logoutReason);
-      sessionStorage.removeItem('edupulse_logout_reason');
+      sessionStorage.removeItem('skulpulse_logout_reason');
     }
 
     if (PortalAuth.restoreSession()) {
@@ -115,7 +115,7 @@ const PortalShell = {
     } else if (code) {
       usernameEl.value = `0001@${code.toUpperCase()}`; // admin convenience for the demo
     } else if (schoolId) {
-      const school = EduStore.getSchool(schoolId);
+      const school = SkulStore.getSchool(schoolId);
       if (school?.schoolCode) usernameEl.value = `0001@${school.schoolCode}`;
     }
   },
@@ -147,7 +147,7 @@ const PortalShell = {
 
   handleLogout() {
     PortalAuth.logout();
-    sessionStorage.setItem('edupulse_logout_reason', 'signed_out');
+    sessionStorage.setItem('skulpulse_logout_reason', 'signed_out');
     window.location.href = 'prototype.html';
   },
 
@@ -198,8 +198,8 @@ const PortalShell = {
     const container = document.getElementById('demo-credentials-body');
     if (!container) return;
 
-    container.innerHTML = EduStore.getSchools().map(school => {
-      const users = EduStore.getUsersForSchool(school.id);
+    container.innerHTML = SkulStore.getSchools().map(school => {
+      const users = SkulStore.getUsersForSchool(school.id);
       return `
         <div class="demo-cred-school">
           <div class="demo-cred-school-head">

@@ -1,5 +1,5 @@
 /**
- * EduPulse — lightweight inline-SVG chart kit.
+ * SkulPulse — lightweight inline-SVG chart kit.
  * No dependencies. Every chart returns an SVG/HTML string, themes off CSS
  * variables, and animates on insertion (innerHTML swap re-triggers keyframes).
  */

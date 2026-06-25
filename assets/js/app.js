@@ -1,5 +1,5 @@
 /**
- * EduPulse Uganda — Prototype App Controller
+ * SkulPulse Uganda — Prototype App Controller
  * Route IDs map 1:1 to future app routes.
  */
 
@@ -24,7 +24,7 @@ const App = {
     this.currentUser = session;
     this.currentRole = session.roleId;
 
-    EduStore.init();
+    SkulStore.init();
     this.syncSchoolContext();
     this.applyPeriod();
 
@@ -35,7 +35,7 @@ const App = {
     this.updateSchoolChrome();
     PortalShell.updateUserChrome();
 
-    const school = EduStore.getActiveSchool();
+    const school = SkulStore.getActiveSchool();
     const codeEl = document.getElementById('banner-school-code');
     if (codeEl && school?.schoolCode) codeEl.textContent = school.schoolCode;
 
@@ -43,7 +43,7 @@ const App = {
   },
 
   syncSchoolContext() {
-    EduStore.syncToEdupulse();
+    SkulStore.syncToSkulpulse();
   },
 
   /** Swap the dataset to the selected academic year + term (real isolation). */
@@ -55,21 +55,21 @@ const App = {
 
   updateSchoolChrome() {
     const el = document.getElementById('topbar-school');
-    if (el && EDUPULSE.school) el.textContent = EDUPULSE.school.name;
+    if (el && SKULPULSE.school) el.textContent = SKULPULSE.school.name;
     const statusEl = document.getElementById('school-status-badge');
-    if (statusEl && EDUPULSE.school) {
-      const st = EDUPULSE.school.status || 'active';
+    if (statusEl && SKULPULSE.school) {
+      const st = SKULPULSE.school.status || 'active';
       statusEl.className = `badge badge-${st === 'active' ? 'success' : st === 'trial' ? 'warning' : 'danger'} badge-dot`;
       statusEl.textContent = st;
     }
   },
 
   getSubscribedModules() {
-    return resolveModuleIds(EDUPULSE.school?.subscribedModules || ['core']);
+    return resolveModuleIds(SKULPULSE.school?.subscribedModules || ['core']);
   },
 
   getSchoolId() {
-    return this.currentUser?.schoolId || EduStore.getActiveSchoolId();
+    return this.currentUser?.schoolId || SkulStore.getActiveSchoolId();
   },
 
   getAuditActor() {
@@ -139,11 +139,11 @@ const App = {
     document.getElementById('year-selector')?.addEventListener('change', (e) => {
       this.currentYear = e.target.value;
       // Jump to the active term of that year (else first term)
-      const terms = EDUPULSE.terms[this.currentYear] || [];
+      const terms = SKULPULSE.terms[this.currentYear] || [];
       this.currentTerm = (terms.find(t => t.status === 'active') || terms[0])?.id || this.currentTerm;
       this.applyPeriod();
       this.updateTermSelector();
-      const yr = EDUPULSE.academicYears.find(y => y.id === this.currentYear);
+      const yr = SKULPULSE.academicYears.find(y => y.id === this.currentYear);
       this.showToast(`Switched to ${e.target.options[e.target.selectedIndex].text}${yr?.status === 'archived' ? ' (archived — read-only)' : ''}. Roster, scores and fees are fully isolated per year.`, 3800);
       if (this.currentScreen === 'student-profile') this.navigate('students');
       else this.renderScreen(this.currentScreen);
@@ -162,8 +162,8 @@ const App = {
     });
 
     window.addEventListener('storage', (e) => {
-      if (e.key === EduStore.STORAGE_KEY) {
-        EduStore.init();
+      if (e.key === SkulStore.STORAGE_KEY) {
+        SkulStore.init();
         this.syncSchoolContext();
         this.renderSidebar();
         this.updateSchoolChrome();
@@ -262,7 +262,7 @@ const App = {
     }
 
     const fd = new FormData(form);
-    const updated = EduStore.updateSchool(this.getSchoolId(), {
+    const updated = SkulStore.updateSchool(this.getSchoolId(), {
       name: fd.get('name'),
       motto: fd.get('motto'),
       district: fd.get('district'),
@@ -303,7 +303,7 @@ const App = {
     input.closest('.module-picker-card')?.classList.toggle('selected', input.checked);
     this.updatePortalBillPreview();
 
-    EduStore.setSchoolModules(this.getSchoolId(), this.getPortalModuleIdsFromDom(), this.getAuditActor());
+    SkulStore.setSchoolModules(this.getSchoolId(), this.getPortalModuleIdsFromDom(), this.getAuditActor());
     this.syncSchoolContext();
     this.renderSidebar();
     this.showToast('Module subscription updated');
@@ -317,9 +317,9 @@ const App = {
 
     let modules;
     if (presetId === 'all') {
-      modules = EDUPULSE.modules.map(m => m.id);
+      modules = SKULPULSE.modules.map(m => m.id);
     } else {
-      const preset = EDUPULSE.exampleModuleSets.find(p => p.id === presetId);
+      const preset = SKULPULSE.exampleModuleSets.find(p => p.id === presetId);
       modules = preset ? preset.modules : ['core'];
     }
 
@@ -329,7 +329,7 @@ const App = {
       box.closest('.module-picker-card')?.classList.toggle('selected', box.checked);
     });
 
-    EduStore.setSchoolModules(this.getSchoolId(), modules, this.getAuditActor());
+    SkulStore.setSchoolModules(this.getSchoolId(), modules, this.getAuditActor());
     this.syncSchoolContext();
     this.renderSidebar();
     this.updatePortalBillPreview();
@@ -347,7 +347,7 @@ const App = {
     return `
       <table class="text-sm" style="width:100%">
         <tbody>
-          <tr><td>Platform base fee</td><td class="text-right">${formatUGX(EDUPULSE.billing.platformBaseFee)}</td></tr>
+          <tr><td>Platform base fee</td><td class="text-right">${formatUGX(SKULPULSE.billing.platformBaseFee)}</td></tr>
           ${breakdown.modules.filter(m => m.id !== 'core').map(m =>
             `<tr><td>${m.name}</td><td class="text-right">${formatUGX(m.price)}</td></tr>`
           ).join('')}
@@ -359,7 +359,7 @@ const App = {
   renderPortalModulePicker(selectedIds, editable) {
     const selected = new Set(resolveModuleIds(selectedIds));
     const byCategory = {};
-    EDUPULSE.modules.forEach(m => {
+    SKULPULSE.modules.forEach(m => {
       if (!byCategory[m.category]) byCategory[m.category] = [];
       byCategory[m.category].push(m);
     });
@@ -398,7 +398,7 @@ const App = {
 
   renderPortalPresetBar(editable) {
     if (!editable) return '';
-    const presets = EduStore.getModulePresets();
+    const presets = SkulStore.getModulePresets();
     return `
       <div class="panel panel-compact">
         <div class="panel-head"><h3>Quick presets</h3></div>
@@ -412,7 +412,7 @@ const App = {
   },
 
   renderPortalUsersPanel(schoolId) {
-    const users = EduStore.getUsersForSchool(schoolId);
+    const users = SkulStore.getUsersForSchool(schoolId);
     return `
       <div class="panel">
         <div class="panel-head"><h3>Portal accounts</h3><span class="text-xs text-muted">Simulated logins</span></div>
@@ -592,7 +592,7 @@ const App = {
   },
 
   getRoleName() {
-    return EDUPULSE.roles.find(r => r.id === this.currentRole)?.name || this.currentRole;
+    return SKULPULSE.roles.find(r => r.id === this.currentRole)?.name || this.currentRole;
   },
 
   hasModuleAccess(moduleId) {
@@ -600,7 +600,7 @@ const App = {
     const subscribed = this.getSubscribedModules();
     if (!subscribed.includes(moduleId)) return false;
 
-    const matrix = EDUPULSE.rbacMatrix[this.currentRole];
+    const matrix = SKULPULSE.rbacMatrix[this.currentRole];
     if (!matrix) return this.currentRole === 'school-admin';
     return matrix[moduleId]?.length > 0 || ['students', 'teachers', 'academics'].includes(moduleId) && this.currentRole === 'school-admin';
   },
@@ -648,7 +648,7 @@ const App = {
     const yearSel = document.getElementById('year-selector');
     const termSel = document.getElementById('term-selector');
     if (yearSel) {
-      yearSel.innerHTML = EDUPULSE.academicYears.map(y =>
+      yearSel.innerHTML = SKULPULSE.academicYears.map(y =>
         `<option value="${y.id}" ${y.id === this.currentYear ? 'selected' : ''}>${y.label}</option>`
       ).join('');
     }
@@ -658,7 +658,7 @@ const App = {
   updateTermSelector() {
     const termSel = document.getElementById('term-selector');
     if (!termSel) return;
-    const terms = EDUPULSE.terms[this.currentYear] || [];
+    const terms = SKULPULSE.terms[this.currentYear] || [];
     termSel.innerHTML = terms.map(t =>
       `<option value="${t.id}" ${t.id === this.currentTerm ? 'selected' : ''}>${t.label.replace('Term ', 'T')}</option>`
     ).join('');
@@ -685,7 +685,7 @@ const App = {
     const breadcrumb = document.getElementById('breadcrumb');
     if (breadcrumb) {
       if (screen === 'student-profile') {
-        const s = EDUPULSE.students.find(x => x.id === this.selectedStudentId);
+        const s = SKULPULSE.students.find(x => x.id === this.selectedStudentId);
         breadcrumb.innerHTML = `<a href="#" onclick="App.navigate('students');return false" style="color:var(--text-muted)">Students</a> <span class="text-faint">/</span> <strong>${s ? this.esc(s.name) : 'Student'}</strong>`;
       } else {
         breadcrumb.innerHTML = `<strong>${currentItem?.label || screen}</strong>`;
@@ -699,8 +699,8 @@ const App = {
     const container = document.getElementById('screen-container');
     if (!container) return;
 
-    const year = EDUPULSE.academicYears.find(y => y.id === this.currentYear);
-    const term = (EDUPULSE.terms[this.currentYear] || []).find(t => t.id === this.currentTerm);
+    const year = SKULPULSE.academicYears.find(y => y.id === this.currentYear);
+    const term = (SKULPULSE.terms[this.currentYear] || []).find(t => t.id === this.currentTerm);
     const ctx = `<div class="context-pill">${icon('calendar')} ${year?.label} · ${term?.label} <span class="text-faint">· scoped data</span></div>`;
 
     let content = '';
@@ -765,7 +765,7 @@ const App = {
 
     if (role === 'parent') return this.renderParentDashboard();
     if (role === 'platform-admin') {
-      return `<div class="notice notice-brand"><div class="notice-body"><div class="notice-title">Platform administration</div><div class="notice-text">Use the <a href="admin/index.html">EduPulse Admin Portal</a> to onboard schools and manage modules.</div></div></div>`;
+      return `<div class="notice notice-brand"><div class="notice-body"><div class="notice-title">Platform administration</div><div class="notice-text">Use the <a href="admin/index.html">SkulPulse Admin Portal</a> to onboard schools and manage modules.</div></div></div>`;
     }
     if (role === 'bursar') return this.renderBursarDashboard();
     if (role === 'teacher') return this.renderTeacherDashboard();
@@ -782,7 +782,7 @@ const App = {
     const watch = Analytics.watchlist(5);
     const top = Analytics.topPerformers(5);
     const att = Analytics.attendanceTrend();
-    const enrolled = EDUPULSE.students.length;
+    const enrolled = SKULPULSE.students.length;
 
     const lineChart = Charts.line({
       values: [...trend, proj], labels: ['Test 1', 'Test 2', 'Test 3', 'Projected'],
@@ -804,7 +804,7 @@ const App = {
 
     return `
       <div class="page-header reveal">
-        <div><h1>Dashboard</h1><p>${EDUPULSE.school.name} · Term 2, 2025 · live overview</p></div>
+        <div><h1>Dashboard</h1><p>${SKULPULSE.school.name} · Term 2, 2025 · live overview</p></div>
         <div class="page-actions"><button class="btn btn-secondary btn-sm">${icon('download')} Export</button><button class="btn btn-primary btn-sm" onclick="App.navigate('ai-analytics')">${icon('ai')} AI insights</button></div>
       </div>
 
@@ -919,12 +919,12 @@ const App = {
 
   renderTeacherDashboard() {
     const myClasses = ['S.4 West', 'S.6 Sciences'];
-    const roster = EDUPULSE.students.filter((s) => myClasses.includes(s.class));
+    const roster = SKULPULSE.students.filter((s) => myClasses.includes(s.class));
     const avg = Math.round(roster.reduce((a, s) => a + s.average, 0) / (roster.length || 1));
     const atRisk = roster.filter((s) => s.riskLevel === 'high').length;
     const classBars = Charts.bars({
       data: myClasses.map((c) => {
-        const r = EDUPULSE.students.filter((s) => s.class === c);
+        const r = SKULPULSE.students.filter((s) => s.class === c);
         return { label: c.replace('S.', 'S'), value: Math.round(r.reduce((a, s) => a + s.average, 0) / (r.length || 1)) };
       }), max: 100
     });
@@ -980,13 +980,13 @@ const App = {
   },
 
   parentChild() {
-    const id = EDUPULSE.reportCardSample?.studentId;
-    return EDUPULSE.students.find((s) => s.id === id) || EDUPULSE.students.find((s) => s.class === 'S.4 West') || EDUPULSE.students[0];
+    const id = SKULPULSE.reportCardSample?.studentId;
+    return SKULPULSE.students.find((s) => s.id === id) || SKULPULSE.students.find((s) => s.class === 'S.4 West') || SKULPULSE.students[0];
   },
 
   renderParentDashboard() {
     const child = this.parentChild();
-    const fee = EDUPULSE.feeRecords.find((f) => f.studentId === child.id) || { balance: 0, termFee: 1, paid: 1, status: 'paid' };
+    const fee = SKULPULSE.feeRecords.find((f) => f.studentId === child.id) || { balance: 0, termFee: 1, paid: 1, status: 'paid' };
     const series = this.studentSeries(child);
     const subjBars = Charts.bars({ data: child.subjects.slice(0, 6).map((x) => ({ label: x.name.slice(0, 4), value: x.current })), max: 100 });
     return `
@@ -1009,7 +1009,7 @@ const App = {
           <button class="btn btn-secondary" onclick="App.navigate('communication')">Message teachers</button>
         </div></div>
         <div class="panel"><div class="panel-head"><h3>Announcements</h3></div><div class="panel-body panel-body-flush"><table><tbody>
-          ${EDUPULSE.announcements.map(a => `<tr><td><div class="font-medium text-sm">${a.title}</div><div class="text-xs text-muted">${a.date}</div></td></tr>`).join('')}
+          ${SKULPULSE.announcements.map(a => `<tr><td><div class="font-medium text-sm">${a.title}</div><div class="text-xs text-muted">${a.date}</div></td></tr>`).join('')}
         </tbody></table></div></div>
       </div>`;
   },
@@ -1017,7 +1017,7 @@ const App = {
   getFilteredStudents() {
     const f = this.studentFilter;
     const q = (f.q || '').trim().toLowerCase();
-    return EDUPULSE.students.filter((s) => {
+    return SKULPULSE.students.filter((s) => {
       if (f.class !== 'all' && s.class !== f.class) return false;
       if (f.status === 'at-risk' && s.riskLevel !== 'high') return false;
       if (f.status === 'active' && s.riskLevel === 'high') return false;
@@ -1029,7 +1029,7 @@ const App = {
   studentRows(list) {
     if (!list.length) return '<tr><td colspan="7" class="text-muted text-sm" style="padding:1rem">No students match.</td></tr>';
     return list.map((s) => {
-      const fee = EDUPULSE.feeRecords.find((f) => f.studentId === s.id);
+      const fee = SKULPULSE.feeRecords.find((f) => f.studentId === s.id);
       const feeBadge = fee ? `<span class="badge ${fee.status === 'paid' ? 'badge-success' : fee.status === 'overdue' || fee.status === 'unpaid' ? 'badge-danger' : 'badge-warning'}">${fee.status}</span>` : '—';
       return `<tr>
         <td><div class="flex items-center gap-2"><div class="avatar ${this.avatarClass(s.name)}">${this.initials(s.name)}</div>
@@ -1064,7 +1064,7 @@ const App = {
           <input id="student-search" class="input" style="max-width:240px" placeholder="Search name, ID, LIN…" value="${this.esc(f.q)}">
           <select id="student-class-filter" class="input form-select" style="max-width:160px">
             <option value="all">All classes</option>
-            ${EDUPULSE.classes.map((c) => `<option value="${c.name}" ${f.class === c.name ? 'selected' : ''}>${c.name}</option>`).join('')}
+            ${SKULPULSE.classes.map((c) => `<option value="${c.name}" ${f.class === c.name ? 'selected' : ''}>${c.name}</option>`).join('')}
           </select>
           <div class="segmented" style="margin-left:auto">${statusBtns}</div>
         </div>
@@ -1081,7 +1081,7 @@ const App = {
         <div class="page-actions"><button class="btn btn-primary btn-sm">${icon('plus')} Add staff</button></div></div>
       <div class="panel"><div class="table-wrap"><table>
         <thead><tr><th>ID</th><th>Name</th><th>Subject</th><th>Classes</th><th>Status</th><th></th></tr></thead>
-        <tbody>${EDUPULSE.teachers.map(t => `<tr>
+        <tbody>${SKULPULSE.teachers.map(t => `<tr>
           <td class="font-mono text-muted">${t.id}</td><td>${t.name}</td><td>${t.subject}</td>
           <td class="text-secondary">${t.classes.join(', ')}</td>
           <td><span class="badge ${t.status==='active'?'badge-success badge-dot':'badge-warning'}">${t.status}</span></td>
@@ -1095,7 +1095,7 @@ const App = {
         <div class="page-actions"><button class="btn btn-secondary btn-sm">Public form</button><button class="btn btn-primary btn-sm">${icon('plus')} Application</button></div></div>
       <div class="kanban">${['application','interview','accepted','enrolled'].map(status => {
         const labels = { application: 'Applications', interview: 'Interview', accepted: 'Accepted', enrolled: 'Enrolled' };
-        const items = EDUPULSE.admissionsPipeline.filter(a => a.status === status);
+        const items = SKULPULSE.admissionsPipeline.filter(a => a.status === status);
         return `<div class="kanban-column"><h4>${labels[status]} (${items.length})</h4>
           ${items.map(a => `<div class="kanban-card"><strong>${a.name}</strong><div class="text-xs text-muted">${a.appliedClass} · ${a.date}</div>${a.score ? `<div class="badge badge-brand" style="margin-top:0.5rem">Score: ${a.score}</div>` : ''}</div>`).join('')}
         </div>`;
@@ -1110,11 +1110,11 @@ const App = {
       <div class="grid grid-2 gap-3">
         <div class="panel"><div class="panel-head"><h3>Classes</h3></div><div class="panel-body panel-body-flush table-wrap"><table>
           <thead><tr><th>Class</th><th>Students</th><th>Teacher</th><th>Room</th></tr></thead>
-          <tbody>${EDUPULSE.classes.map(c => `<tr><td><div class="font-medium">${c.name}</div><div class="text-xs text-muted">${c.stream}</div></td><td>${c.students}</td><td>${c.classTeacher}</td><td class="text-muted">${c.room}</td></tr>`).join('')}</tbody>
+          <tbody>${SKULPULSE.classes.map(c => `<tr><td><div class="font-medium">${c.name}</div><div class="text-xs text-muted">${c.stream}</div></td><td>${c.students}</td><td>${c.classTeacher}</td><td class="text-muted">${c.room}</td></tr>`).join('')}</tbody>
         </table></div></div>
         <div class="panel"><div class="panel-head"><h3>Subjects</h3><span class="text-xs text-muted">UNEB</span></div><div class="panel-body panel-body-flush table-wrap"><table>
           <thead><tr><th>Subject</th><th>Code</th><th>Category</th></tr></thead>
-          <tbody>${EDUPULSE.subjects.map(s => `<tr><td>${s.name}</td><td class="font-mono text-muted">${s.unebCode}</td><td>${s.category}</td></tr>`).join('')}</tbody>
+          <tbody>${SKULPULSE.subjects.map(s => `<tr><td>${s.name}</td><td class="font-mono text-muted">${s.unebCode}</td><td>${s.category}</td></tr>`).join('')}</tbody>
         </table></div></div>
       </div>`;
   },
@@ -1132,13 +1132,13 @@ const App = {
         </div></div></div>
       <div class="panel"><div class="table-wrap"><table>
         <thead><tr><th>Assessment</th><th>Type</th><th>Class</th><th>Date</th><th>Status</th><th></th></tr></thead>
-        <tbody>${EDUPULSE.assessments.map(a => `<tr><td>${a.name}</td><td class="text-secondary">${a.type}</td><td>${a.class}</td><td class="text-muted">${a.date}</td>
+        <tbody>${SKULPULSE.assessments.map(a => `<tr><td>${a.name}</td><td class="text-secondary">${a.type}</td><td>${a.class}</td><td class="text-muted">${a.date}</td>
           <td><span class="badge ${a.status==='published'?'badge-success badge-dot':'badge-warning'}">${a.status}</span></td>
           <td><button class="btn btn-ghost btn-sm">Marks</button></td></tr>`).join('')}</tbody></table></div></div>`;
   },
 
   renderReportCards() {
-    const rc = EDUPULSE.reportCardSample;
+    const rc = SKULPULSE.reportCardSample;
     const isParent = this.currentRole === 'parent';
     return `
       <div class="page-header"><div><h1>Report cards</h1></div>
@@ -1160,8 +1160,8 @@ const App = {
       </div>
       <div class="report-card-preview reveal-2">
         <div class="report-card-header">
-          <h2>${EDUPULSE.school.name}</h2>
-          <p style="opacity:0.85;margin-top:0.25rem">${EDUPULSE.school.motto}</p>
+          <h2>${SKULPULSE.school.name}</h2>
+          <p style="opacity:0.85;margin-top:0.25rem">${SKULPULSE.school.motto}</p>
           <h3 style="margin-top:1rem">TERMINAL REPORT — ${rc.term}</h3>
         </div>
         <div class="report-card-body">
@@ -1198,21 +1198,21 @@ const App = {
 
   renderAttendance() {
     const sa = Analytics.schoolAverage();
-    const chronic = EDUPULSE.students.filter((s) => s.attendanceRate < 80).length;
-    const absent = Math.round(EDUPULSE.students.length * (1 - sa.attendance / 100));
+    const chronic = SKULPULSE.students.filter((s) => s.attendanceRate < 80).length;
+    const absent = Math.round(SKULPULSE.students.length * (1 - sa.attendance / 100));
     const trend = Charts.line({
       values: Analytics.attendanceTrend().map((p) => p.value), labels: Analytics.attendanceTrend().map((p) => p.label),
       min: 70, max: 100
     });
     const classBars = Charts.bars({ data: Analytics.byClass().map((c) => ({ label: c.name.replace('S.', 'S'), value: c.attendance })), max: 100 });
-    const roster = EDUPULSE.students.filter((s) => s.class === 'S.4 West');
+    const roster = SKULPULSE.students.filter((s) => s.class === 'S.4 West');
 
     return `
-      <div class="page-header reveal"><div><h1>Attendance</h1><p>Term 2, 2025 · ${EDUPULSE.school.name}</p></div>
+      <div class="page-header reveal"><div><h1>Attendance</h1><p>Term 2, 2025 · ${SKULPULSE.school.name}</p></div>
         <div class="page-actions"><button class="btn btn-primary btn-sm">Take roll</button><button class="btn btn-secondary btn-sm">Alert parents</button></div></div>
       <div class="metric-grid">
         ${this.metricCard('Attendance today', sa.attendance, { icon: 'attendance', suffix: '%' })}
-        ${this.metricCard('Present', EDUPULSE.students.length - absent, { icon: 'students', accent: 'blue' })}
+        ${this.metricCard('Present', SKULPULSE.students.length - absent, { icon: 'students', accent: 'blue' })}
         ${this.metricCard('Absent today', absent, { icon: 'alert', accent: 'amber' })}
         ${this.metricCard('Chronic absentees', chronic, { icon: 'alert', accent: 'red', foot: `<span class="text-muted">below 80% this term</span>` })}
       </div>
@@ -1243,7 +1243,7 @@ const App = {
     const divisions = Analytics.divisionForecast(filterFn);
     const classData = Analytics.byClass(scope === 'all' ? null : scope);
     // Flagged cards: in the overview show only high-priority; drill into a level for the full high+medium list.
-    const insights = EDUPULSE.aiInsights.filter((i) => {
+    const insights = SKULPULSE.aiInsights.filter((i) => {
       if (i.riskLevel === 'low') return false;
       return scope === 'all' ? i.riskLevel === 'high' : i.level === scope;
     });
@@ -1274,7 +1274,7 @@ const App = {
     if (scope === 'all') {
       const byLevel = Analytics.byLevel();
       const subjAgg = {};
-      EDUPULSE.students.forEach((s) => s.subjects.forEach((x) => { (subjAgg[x.name] ||= []).push(x.current); }));
+      SKULPULSE.students.forEach((s) => s.subjects.forEach((x) => { (subjAgg[x.name] ||= []).push(x.current); }));
       const subjBars = Object.entries(subjAgg).map(([name, arr]) => ({ label: name, value: Math.round(arr.reduce((a, b) => a + b, 0) / arr.length) }))
         .sort((a, b) => b.value - a.value);
       secondary = `
@@ -1299,7 +1299,7 @@ const App = {
     // Group flagged students by class
     const groups = {};
     insights.forEach((i) => { (groups[i.class] ||= []).push(i); });
-    const orderedClasses = (EDUPULSE.classes || []).map((c) => c.name).filter((n) => groups[n]);
+    const orderedClasses = (SKULPULSE.classes || []).map((c) => c.name).filter((n) => groups[n]);
     const groupsHtml = orderedClasses.map((cls) => {
       const items = groups[cls].sort((a, b) => ({ high: 0, medium: 1, low: 2 }[a.riskLevel] - { high: 0, medium: 1, low: 2 }[b.riskLevel]));
       const high = items.filter((i) => i.riskLevel === 'high').length;
@@ -1377,7 +1377,7 @@ const App = {
     const isParent = this.currentRole === 'parent';
     if (isParent) {
       const child = this.parentChild();
-      const fee = EDUPULSE.feeRecords.find((f) => f.studentId === child.id) || { termFee: 1, paid: 1, balance: 0, status: 'paid' };
+      const fee = SKULPULSE.feeRecords.find((f) => f.studentId === child.id) || { termFee: 1, paid: 1, balance: 0, status: 'paid' };
       const pct = Math.round((fee.paid / fee.termFee) * 100);
       return `
         <div class="page-header reveal"><div><h1>Fees</h1><p>${child.name} · ${child.class}</p></div></div>
@@ -1408,7 +1408,7 @@ const App = {
       ], centerValue: fin.rate + '%', centerLabel: 'collected'
     });
     const methodBars = Object.entries(fin.byMethod).map(([k, v], i) => ({ label: k, value: Math.round(v / 1000000), color: Charts.PALETTE[i % Charts.PALETTE.length] }));
-    const recs = [...EDUPULSE.feeRecords].sort((a, b) => b.balance - a.balance);
+    const recs = [...SKULPULSE.feeRecords].sort((a, b) => b.balance - a.balance);
 
     return `
       <div class="page-header reveal"><div><h1>Finance</h1><p>Term 2, 2025 · ${fin.count} student accounts</p></div>
@@ -1442,7 +1442,7 @@ const App = {
           <button class="btn btn-primary btn-sm" onclick="App.showToast('SMS sent (demo)')">Send</button>
         </div></div>
         <div class="panel"><div class="panel-head"><h3>Announcements</h3></div><div class="panel-body panel-body-flush"><table><tbody>
-          ${EDUPULSE.announcements.map(a => `<tr><td><div class="font-medium text-sm">${a.title}</div><div class="text-xs text-muted">${a.date} · ${a.audience}</div></td><td><span class="badge ${a.priority==='high'?'badge-danger':'badge-muted'}">${a.priority}</span></td></tr>`).join('')}
+          ${SKULPULSE.announcements.map(a => `<tr><td><div class="font-medium text-sm">${a.title}</div><div class="text-xs text-muted">${a.date} · ${a.audience}</div></td><td><span class="badge ${a.priority==='high'?'badge-danger':'badge-muted'}">${a.priority}</span></td></tr>`).join('')}
         </tbody></table></div></div>
       </div>`;
   },
@@ -1522,16 +1522,16 @@ const App = {
       <div class="page-header"><div><h1>Roles & Permissions</h1><p>Control who can access what within your subscribed modules</p></div>
         <div class="page-actions"><button class="btn btn-primary">+ Custom Role</button></div></div>
       <div class="card"><div class="card-body"><p class="text-sm text-secondary" style="margin-bottom:1rem">RBAC is scoped to subscribed modules only. Users cannot access modules the school hasn't paid for, regardless of role.</p></div>
-      <div class="table-wrap"><table class="rbac-matrix"><thead><tr><th>Module / Role</th>${roles.map(r=>`<th>${EDUPULSE.roles.find(x=>x.id===r)?.name.split(' ')[0]}</th>`).join('')}</tr></thead>
+      <div class="table-wrap"><table class="rbac-matrix"><thead><tr><th>Module / Role</th>${roles.map(r=>`<th>${SKULPULSE.roles.find(x=>x.id===r)?.name.split(' ')[0]}</th>`).join('')}</tr></thead>
         <tbody>${modules.map(mod => `<tr><td>${mod}</td>${roles.map(role => {
-          const perms = EDUPULSE.rbacMatrix[role]?.[mod] || [];
+          const perms = SKULPULSE.rbacMatrix[role]?.[mod] || [];
           return `<td style="text-align:center">${perms.length ? `<span class="badge badge-brand">${perms.length} perms</span>` : '<span class="text-muted">—</span>'}</td>`;
         }).join('')}</tr>`).join('')}</tbody></table></div></div>
       <div class="card" style="margin-top:1rem"><div class="card-header"><h3>Permission Detail — Teacher Role</h3></div><div class="card-body table-wrap"><table>
-        <thead><tr><th>Module</th>${EDUPULSE.rbacPermissions.map(p=>`<th>${p.label}</th>`).join('')}</tr></thead>
-        <tbody><tr><td>Assessment</td>${EDUPULSE.rbacPermissions.map(p => `<td style="text-align:center"><input type="checkbox" ${['view','create','edit'].includes(p.id)?'checked':''} disabled /></td>`).join('')}</tr>
-        <tr><td>Attendance</td>${EDUPULSE.rbacPermissions.map(p => `<td style="text-align:center"><input type="checkbox" ${['view','create','edit'].includes(p.id)?'checked':''} disabled /></td>`).join('')}</tr>
-        <tr><td>Students</td>${EDUPULSE.rbacPermissions.map(p => `<td style="text-align:center"><input type="checkbox" ${p.id==='view'?'checked':''} disabled /></td>`).join('')}</tr>
+        <thead><tr><th>Module</th>${SKULPULSE.rbacPermissions.map(p=>`<th>${p.label}</th>`).join('')}</tr></thead>
+        <tbody><tr><td>Assessment</td>${SKULPULSE.rbacPermissions.map(p => `<td style="text-align:center"><input type="checkbox" ${['view','create','edit'].includes(p.id)?'checked':''} disabled /></td>`).join('')}</tr>
+        <tr><td>Attendance</td>${SKULPULSE.rbacPermissions.map(p => `<td style="text-align:center"><input type="checkbox" ${['view','create','edit'].includes(p.id)?'checked':''} disabled /></td>`).join('')}</tr>
+        <tr><td>Students</td>${SKULPULSE.rbacPermissions.map(p => `<td style="text-align:center"><input type="checkbox" ${p.id==='view'?'checked':''} disabled /></td>`).join('')}</tr>
       </tbody></table></div></div>`;
   },
 
@@ -1540,11 +1540,11 @@ const App = {
       <div class="page-header"><div><h1>Academic Years & Terms</h1><p>Strict data isolation — no cross-year data mix-ups</p></div>
         <div class="page-actions"><button class="btn btn-primary">+ New Academic Year</button></div></div>
       <div class="notice notice-info"><span class="notice-icon">${icon('shield')}</span><div class="notice-body"><div class="notice-title">Data isolation</div><div class="notice-text">Each year and term keeps separate records. Archived years are read-only. Promotions copy forward without altering history.</div></div></div>
-      <div class="timeline">${EDUPULSE.academicYears.map(y => `
+      <div class="timeline">${SKULPULSE.academicYears.map(y => `
         <div class="timeline-item"><div class="card"><div class="card-body">
           <div class="flex justify-between items-center"><h3>${y.label} <span class="badge ${y.status==='active'?'badge-success':y.status==='archived'?'badge-muted':'badge-info'}">${y.status}</span></h3>
           ${y.status==='active'?'<button class="btn btn-secondary btn-sm">Close Year</button>':''}</div>
-          <div style="margin-top:1rem">${(EDUPULSE.terms[y.id]||[]).map(t => `
+          <div style="margin-top:1rem">${(SKULPULSE.terms[y.id]||[]).map(t => `
             <div class="flex justify-between items-center" style="padding:0.5rem 0;border-bottom:1px solid var(--border)">
               <div><strong>${t.label}</strong><div class="text-xs text-muted">${t.dates}</div></div>
               <span class="badge ${t.status==='active'?'badge-success':t.status==='closed'?'badge-muted':'badge-info'}">${t.status}</span>
@@ -1558,11 +1558,11 @@ const App = {
         <div class="page-actions"><button class="btn btn-secondary">📥 Export Log</button></div></div>
       <div class="card"><div class="table-wrap"><table>
         <thead><tr><th>Timestamp</th><th>User</th><th>Action</th><th>Module</th></tr></thead>
-        <tbody>${EDUPULSE.auditLog.map(l => `<tr><td>${l.time}</td><td>${l.user}</td><td>${l.action}</td><td><span class="badge badge-muted">${l.module}</span></td></tr>`).join('')}</tbody></table></div></div>`;
+        <tbody>${SKULPULSE.auditLog.map(l => `<tr><td>${l.time}</td><td>${l.user}</td><td>${l.action}</td><td><span class="badge badge-muted">${l.module}</span></td></tr>`).join('')}</tbody></table></div></div>`;
   },
 
   renderSettings() {
-    const school = EduStore.getSchool(this.getSchoolId()) || EDUPULSE.school;
+    const school = SkulStore.getSchool(this.getSchoolId()) || SKULPULSE.school;
     const editable = this.canManageSchool();
     const regions = ['Central', 'Eastern', 'Northern', 'Western'];
     const levels = ['Secondary (O & A Level)', 'Primary', 'Mixed (P.1 – S.6)'];
@@ -1703,7 +1703,7 @@ const App = {
         <div class="page-actions"><button class="btn btn-primary btn-sm">${icon('plus')} Onboard</button></div></div>
       <div class="panel"><div class="table-wrap"><table>
         <thead><tr><th>School</th><th>District</th><th>Modules</th><th>Term bill</th><th>Status</th><th></th></tr></thead>
-        <tbody>${EDUPULSE.platformSchools.map(s => {
+        <tbody>${SKULPULSE.platformSchools.map(s => {
           const ids = resolveModuleIds(s.subscribedModules);
           const count = ids.filter(id => id !== 'core').length;
           return `<tr><td>${s.name}</td><td class="text-muted">${s.district}</td><td>${count}</td><td>${formatUGX(calculateTermBill(ids))}</td>
@@ -1713,7 +1713,7 @@ const App = {
   },
 
   renderPlatformBilling() {
-    const invoices = EDUPULSE.platformSchools.map(s => ({
+    const invoices = SKULPULSE.platformSchools.map(s => ({
       school: s.name,
       modules: resolveModuleIds(s.subscribedModules).filter(id => id !== 'core').length,
       amount: calculateTermBill(s.subscribedModules),
@@ -1723,7 +1723,7 @@ const App = {
       <div class="page-header"><div><h1>Billing</h1><p class="text-sm text-muted">Invoices derived from active modules</p></div></div>
       <div class="stat-grid">
         <div class="stat-card"><div class="stat-label">Term revenue</div><div class="stat-value">${formatUGX(invoices.reduce((s, i) => s + i.amount, 0))}</div></div>
-        <div class="stat-card"><div class="stat-label">Schools</div><div class="stat-value">${EDUPULSE.platformSchools.length}</div></div>
+        <div class="stat-card"><div class="stat-label">Schools</div><div class="stat-value">${SKULPULSE.platformSchools.length}</div></div>
         <div class="stat-card"><div class="stat-label">Pending</div><div class="stat-value">${invoices.filter(i => i.status === 'pending').length}</div></div>
       </div>
       <div class="panel" style="margin-top:0.75rem"><div class="table-wrap"><table>
@@ -1740,7 +1740,7 @@ const App = {
   },
 
   renderStudentProfile() {
-    const s = EDUPULSE.students.find((x) => x.id === this.selectedStudentId);
+    const s = SKULPULSE.students.find((x) => x.id === this.selectedStudentId);
     if (!s) return `<div class="empty-state"><p>Student not found in this period.</p><button class="btn btn-secondary btn-sm" style="margin-top:0.5rem" onclick="App.navigate('students')">Back to students</button></div>`;
 
     const tabs = [
@@ -1755,8 +1755,8 @@ const App = {
     ];
     if (!tabs.some((t) => t.id === this.studentTab)) this.studentTab = 'overview';
     const activeIdx = tabs.findIndex((t) => t.id === this.studentTab) + 1;
-    const year = EDUPULSE.academicYears.find((y) => y.id === this.currentYear);
-    const term = (EDUPULSE.terms[this.currentYear] || []).find((t) => t.id === this.currentTerm);
+    const year = SKULPULSE.academicYears.find((y) => y.id === this.currentYear);
+    const term = (SKULPULSE.terms[this.currentYear] || []).find((t) => t.id === this.currentTerm);
 
     const tabBar = tabs.map((t) =>
       `<button class="tab ${this.studentTab === t.id ? 'active' : ''}" data-student-tab="${t.id}">${icon(t.icon)} ${t.label}</button>`
@@ -1805,7 +1805,7 @@ const App = {
   },
 
   renderStudentTab(s) {
-    const fee = EDUPULSE.feeRecords.find((f) => f.studentId === s.id) || { termFee: 0, paid: 0, balance: 0, status: '—', method: null, lastPayment: null };
+    const fee = SKULPULSE.feeRecords.find((f) => f.studentId === s.id) || { termFee: 0, paid: 0, balance: 0, status: '—', method: null, lastPayment: null };
     const series = this.studentSeries(s);
     const res = s.residence || {};
     const h = s.health || {};
@@ -1933,9 +1933,9 @@ const App = {
   },
 
   showStudentDetail(id) {
-    const s = EDUPULSE.students.find(x => x.id === id);
+    const s = SKULPULSE.students.find(x => x.id === id);
     if (!s) return;
-    const fee = EDUPULSE.feeRecords.find((f) => f.studentId === id);
+    const fee = SKULPULSE.feeRecords.find((f) => f.studentId === id);
     const series = this.studentSeries(s);
     const subjBars = s.subjects.map((x) => ({ label: x.name.slice(0, 4), value: x.current, color: Charts.scoreColor(x.current) }));
     document.getElementById('modal-title').textContent = s.name;

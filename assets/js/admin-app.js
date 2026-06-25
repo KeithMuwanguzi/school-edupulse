@@ -1,5 +1,5 @@
 /**
- * EduPulse — Platform admin portal
+ * SkulPulse — Platform admin portal
  * Onboards schools, assigns modules, shares localStorage store with school demo.
  */
 
@@ -10,7 +10,7 @@ const AdminApp = {
   onboardDraft: null,
 
   init() {
-    EduStore.init();
+    SkulStore.init();
     this.bindEvents();
     this.applyRouteFromUrl();
     this.renderNav();
@@ -46,8 +46,8 @@ const AdminApp = {
     });
 
     window.addEventListener('storage', (e) => {
-      if (e.key === EduStore.STORAGE_KEY) {
-        EduStore.init();
+      if (e.key === SkulStore.STORAGE_KEY) {
+        SkulStore.init();
         this.renderScreen(this.currentScreen);
         this.showToast('Store updated from another tab');
       }
@@ -115,7 +115,7 @@ const AdminApp = {
     const params = new URLSearchParams(window.location.search);
     const schoolId = params.get('school');
     const screen = params.get('screen');
-    if (schoolId && EduStore.getSchool(schoolId)) {
+    if (schoolId && SkulStore.getSchool(schoolId)) {
       this.selectedSchoolId = schoolId;
       this.currentScreen = 'school-detail';
     } else if (screen) {
@@ -154,8 +154,8 @@ const AdminApp = {
   },
 
   openSchoolPortal(id) {
-    EduStore.setActiveSchool(id);
-    const school = EduStore.getSchool(id);
+    SkulStore.setActiveSchool(id);
+    const school = SkulStore.getSchool(id);
     const qs = school?.schoolCode ? `?code=${encodeURIComponent(school.schoolCode)}` : `?school=${encodeURIComponent(id)}`;
     window.open(`../prototype.html${qs}`, '_blank');
   },
@@ -202,7 +202,7 @@ const AdminApp = {
   },
 
   getSchools() {
-    return EduStore.getSchools();
+    return SkulStore.getSchools();
   },
 
   statusBadge(status) {
@@ -212,15 +212,15 @@ const AdminApp = {
 
   moduleCountLabel(subscribedModules) {
     const ids = resolveModuleIds(subscribedModules).filter(id => id !== 'core');
-    return ids.length === EDUPULSE.modules.length - 1 ? 'All modules' : `${ids.length} modules`;
+    return ids.length === SKULPULSE.modules.length - 1 ? 'All modules' : `${ids.length} modules`;
   },
 
   renderDashboard() {
     const schools = this.getSchools();
     const active = schools.filter(s => s.status === 'active').length;
     const trial = schools.filter(s => s.status === 'trial').length;
-    const revenue = EduStore.getTotalTermRevenue();
-    const audit = EduStore.getPlatformAudit(8);
+    const revenue = SkulStore.getTotalTermRevenue();
+    const audit = SkulStore.getPlatformAudit(8);
 
     return `
       <div class="page-header">
@@ -236,7 +236,7 @@ const AdminApp = {
       <div class="kpi-strip">
         <div class="kpi-item"><div class="kpi-label">Schools</div><div class="kpi-value">${schools.length}</div><div class="kpi-meta">${active} active · ${trial} trial</div></div>
         <div class="kpi-item"><div class="kpi-label">Term revenue</div><div class="kpi-value">${formatUGX(revenue)}</div><div class="kpi-meta">Module + base fees</div></div>
-        <div class="kpi-item"><div class="kpi-label">Catalog modules</div><div class="kpi-value">${EDUPULSE.modules.length}</div><div class="kpi-meta">Per-term pricing</div></div>
+        <div class="kpi-item"><div class="kpi-label">Catalog modules</div><div class="kpi-value">${SKULPULSE.modules.length}</div><div class="kpi-meta">Per-term pricing</div></div>
         <div class="kpi-item"><div class="kpi-label">Storage</div><div class="kpi-value">local</div><div class="kpi-meta">Shared with school demo</div></div>
       </div>
 
@@ -252,7 +252,7 @@ const AdminApp = {
         <div class="panel">
           <div class="panel-head"><h3>Module adoption</h3><span class="text-xs text-muted">schools subscribed</span></div>
           <div class="chart-body">${Charts.hbars({
-            data: EDUPULSE.modules.filter((m) => m.id !== 'core')
+            data: SKULPULSE.modules.filter((m) => m.id !== 'core')
               .map((m) => ({ label: m.name.split(' ')[0], value: schools.filter((s) => resolveModuleIds(s.subscribedModules).includes(m.id)).length, color: Charts.scoreColor(60) }))
               .sort((a, b) => b.value - a.value).slice(0, 7),
             max: schools.length, format: (v) => v
@@ -287,7 +287,7 @@ const AdminApp = {
           <div class="panel-body panel-body-flush">
             <table><tbody>
               ${audit.map(a => {
-                const school = a.schoolId ? EduStore.getSchool(a.schoolId) : null;
+                const school = a.schoolId ? SkulStore.getSchool(a.schoolId) : null;
                 return `<tr><td><div class="text-sm">${a.action}</div><div class="text-xs text-muted">${a.time} · ${school ? school.name : 'Platform'}</div></td></tr>`;
               }).join('')}
             </tbody></table>
@@ -424,7 +424,7 @@ const AdminApp = {
   },
 
   renderPortalAccessPanel(school) {
-    const users = EduStore.getUsersForSchool(school.id);
+    const users = SkulStore.getUsersForSchool(school.id);
     return `
       <div class="panel">
         <div class="panel-head">
@@ -453,7 +453,7 @@ const AdminApp = {
   },
 
   renderSchoolDetail(id) {
-    const school = EduStore.getSchool(id);
+    const school = SkulStore.getSchool(id);
     if (!school) {
       return `<div class="notice notice-danger"><div class="notice-body"><div class="notice-title">School not found</div><div class="notice-text"><button class="btn btn-secondary btn-sm" onclick="AdminApp.navigate('schools')">Back to schools</button></div></div></div>`;
     }
@@ -533,8 +533,8 @@ const AdminApp = {
 
   renderBilling() {
     const schools = this.getSchools();
-    const total = EduStore.getTotalTermRevenue();
-    const base = EDUPULSE.billing.platformBaseFee * schools.length;
+    const total = SkulStore.getTotalTermRevenue();
+    const base = SKULPULSE.billing.platformBaseFee * schools.length;
 
     return `
       <div class="page-header">
@@ -543,7 +543,7 @@ const AdminApp = {
 
       <div class="kpi-strip">
         <div class="kpi-item"><div class="kpi-label">Total this term</div><div class="kpi-value">${formatUGX(total)}</div></div>
-        <div class="kpi-item"><div class="kpi-label">Platform base</div><div class="kpi-value">${formatUGX(base)}</div><div class="kpi-meta">${schools.length} × ${formatUGX(EDUPULSE.billing.platformBaseFee)}</div></div>
+        <div class="kpi-item"><div class="kpi-label">Platform base</div><div class="kpi-value">${formatUGX(base)}</div><div class="kpi-meta">${schools.length} × ${formatUGX(SKULPULSE.billing.platformBaseFee)}</div></div>
         <div class="kpi-item"><div class="kpi-label">Module fees</div><div class="kpi-value">${formatUGX(total - base)}</div></div>
       </div>
 
@@ -571,7 +571,7 @@ const AdminApp = {
   },
 
   renderCatalog() {
-    const categories = [...new Set(EDUPULSE.modules.map(m => m.category))];
+    const categories = [...new Set(SKULPULSE.modules.map(m => m.category))];
     return `
       <div class="page-header">
         <div><h1>Module catalog</h1><p>Reference pricing — assign via school onboarding or detail screens</p></div>
@@ -581,7 +581,7 @@ const AdminApp = {
           <div class="panel-head"><h3>${cat}</h3><span class="text-xs text-muted">Per term · UGX</span></div>
           <div class="panel-body">
             <div class="module-grid">
-              ${EDUPULSE.modules.filter(m => m.category === cat).map(m => `
+              ${SKULPULSE.modules.filter(m => m.category === cat).map(m => `
                 <div class="module-tile">
                   <div class="module-tile-head"><h4>${m.name}</h4><span class="badge badge-muted">${m.id}</span></div>
                   <p>${m.description}</p>
@@ -593,7 +593,7 @@ const AdminApp = {
   },
 
   renderAudit() {
-    const entries = EduStore.getPlatformAudit(100);
+    const entries = SkulStore.getPlatformAudit(100);
     return `
       <div class="page-header">
         <div><h1>Platform audit log</h1><p>Onboarding, module changes, and admin actions</p></div>
@@ -604,7 +604,7 @@ const AdminApp = {
             <thead><tr><th>Time</th><th>Actor</th><th>School</th><th>Action</th></tr></thead>
             <tbody>
               ${entries.map(a => {
-                const school = a.schoolId ? EduStore.getSchool(a.schoolId) : null;
+                const school = a.schoolId ? SkulStore.getSchool(a.schoolId) : null;
                 return `<tr>
                   <td class="text-xs text-muted">${a.time}</td>
                   <td>${a.actor}</td>
@@ -633,14 +633,14 @@ const AdminApp = {
       <div class="panel" style="margin-top:0.75rem">
         <div class="panel-head"><h3>Store</h3></div>
         <div class="panel-body">
-          <p class="text-sm"><strong>Key:</strong> <code>${EduStore.STORAGE_KEY}</code></p>
+          <p class="text-sm"><strong>Key:</strong> <code>${SkulStore.STORAGE_KEY}</code></p>
           <p class="text-sm text-muted" style="margin-top:0.5rem">School portal reads the same key. Use two browser tabs — admin + prototype — to simulate platform vs school views.</p>
         </div>
       </div>`;
   },
 
   renderPresetBar() {
-    const presets = EduStore.getModulePresets();
+    const presets = SkulStore.getModulePresets();
     return `
       <div class="panel panel-compact">
         <div class="panel-head"><h3>Quick presets</h3></div>
@@ -656,7 +656,7 @@ const AdminApp = {
   renderModulePicker(selectedIds, groupName) {
     const selected = new Set(resolveModuleIds(selectedIds));
     const byCategory = {};
-    EDUPULSE.modules.forEach(m => {
+    SKULPULSE.modules.forEach(m => {
       if (!byCategory[m.category]) byCategory[m.category] = [];
       byCategory[m.category].push(m);
     });
@@ -700,7 +700,7 @@ const AdminApp = {
       <div class="panel-body panel-body-flush">
         <table class="text-sm">
           <tbody>
-            <tr><td>Platform base fee</td><td class="text-right">${formatUGX(EDUPULSE.billing.platformBaseFee)}</td></tr>
+            <tr><td>Platform base fee</td><td class="text-right">${formatUGX(SKULPULSE.billing.platformBaseFee)}</td></tr>
             ${breakdown.modules.filter(m => m.id !== 'core').map(m =>
               `<tr><td>${m.name}</td><td class="text-right">${formatUGX(m.price)}</td></tr>`
             ).join('')}
@@ -756,7 +756,7 @@ const AdminApp = {
 
     if (this.currentScreen === 'school-detail' && this.selectedSchoolId) {
       const ids = this.getSelectedModulesFromPicker(picker);
-      EduStore.setSchoolModules(this.selectedSchoolId, ids, 'Platform Admin');
+      SkulStore.setSchoolModules(this.selectedSchoolId, ids, 'Platform Admin');
       this.showToast('Modules saved');
     }
   },
@@ -764,9 +764,9 @@ const AdminApp = {
   applyPreset(presetId) {
     let modules;
     if (presetId === 'all') {
-      modules = EDUPULSE.modules.map(m => m.id);
+      modules = SKULPULSE.modules.map(m => m.id);
     } else {
-      const preset = EDUPULSE.exampleModuleSets.find(p => p.id === presetId);
+      const preset = SKULPULSE.exampleModuleSets.find(p => p.id === presetId);
       modules = preset ? preset.modules : ['core'];
     }
 
@@ -782,7 +782,7 @@ const AdminApp = {
     this.updateLiveBillPreview(picker);
 
     if (this.currentScreen === 'school-detail' && this.selectedSchoolId) {
-      EduStore.setSchoolModules(this.selectedSchoolId, modules, 'Platform Admin');
+      SkulStore.setSchoolModules(this.selectedSchoolId, modules, 'Platform Admin');
       this.showToast('Preset applied and saved');
     } else if (this.currentScreen === 'onboard') {
       this.showToast('Preset applied');
@@ -793,7 +793,7 @@ const AdminApp = {
     if (!this.selectedSchoolId) return;
     const picker = this.getActiveModulePicker();
     const ids = this.getSelectedModulesFromPicker(picker);
-    EduStore.setSchoolModules(this.selectedSchoolId, ids, 'Platform Admin');
+    SkulStore.setSchoolModules(this.selectedSchoolId, ids, 'Platform Admin');
     this.showToast('Modules saved');
     this.renderScreen('school-detail');
   },
@@ -801,7 +801,7 @@ const AdminApp = {
   submitOnboard(form) {
     const fd = new FormData(form);
     const modules = this.getSelectedModulesFromForm(form);
-    const result = EduStore.createSchool({
+    const result = SkulStore.createSchool({
       name: fd.get('name'),
       schoolCode: fd.get('schoolCode'),
       motto: fd.get('motto'),
@@ -840,7 +840,7 @@ const AdminApp = {
   submitSchoolEdit(form) {
     const fd = new FormData(form);
     const id = fd.get('id');
-    EduStore.updateSchool(id, {
+    SkulStore.updateSchool(id, {
       name: fd.get('name'),
       motto: fd.get('motto'),
       district: fd.get('district'),
@@ -857,10 +857,10 @@ const AdminApp = {
   },
 
   confirmDeleteSchool(id) {
-    const school = EduStore.getSchool(id);
+    const school = SkulStore.getSchool(id);
     if (!school) return;
     if (confirm(`Delete ${school.name}? This cannot be undone.`)) {
-      if (EduStore.deleteSchool(id)) {
+      if (SkulStore.deleteSchool(id)) {
         this.showToast('School removed');
         this.navigate('schools');
       } else {
@@ -871,7 +871,7 @@ const AdminApp = {
 
   confirmReset() {
     if (confirm('Reset all schools to seed data? Custom schools will be lost.')) {
-      EduStore.resetToSeed();
+      SkulStore.resetToSeed();
       this.selectedSchoolId = null;
       this.showToast('Seed data restored');
       this.navigate('dashboard');
@@ -879,14 +879,14 @@ const AdminApp = {
   },
 
   showInvoice(schoolId) {
-    const school = EduStore.getSchool(schoolId);
+    const school = SkulStore.getSchool(schoolId);
     if (!school) return;
     const breakdown = getModuleBreakdown(school.subscribedModules);
     this.openModal(`${school.name} — Term invoice`, `
       <p class="text-sm text-muted" style="margin-bottom:0.75rem">${school.district} · ${school.status}</p>
       <table class="text-sm" style="width:100%">
         <tbody>
-          <tr><td>Platform base</td><td class="text-right">${formatUGX(EDUPULSE.billing.platformBaseFee)}</td></tr>
+          <tr><td>Platform base</td><td class="text-right">${formatUGX(SKULPULSE.billing.platformBaseFee)}</td></tr>
           ${breakdown.modules.filter(m => m.id !== 'core').map(m =>
             `<tr><td>${m.name}</td><td class="text-right">${formatUGX(m.price)}</td></tr>`
           ).join('')}

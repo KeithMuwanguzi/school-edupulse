@@ -1,0 +1,46 @@
+# Production overrides for AFRICLOUD VPS (or any single-slot deploy).
+# Usage (repo root):
+#   docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d --build
+#
+# Bind app ports to localhost only — Caddy on the host terminates TLS and proxies.
+name: skulpulse-prod
+
+services:
+  postgres:
+    container_name: skulpulse-prod-postgres
+    ports: []   # never expose Postgres publicly
+
+  pgbouncer:
+    container_name: skulpulse-prod-pgbouncer
+    ports: []
+
+  redis:
+    container_name: skulpulse-prod-redis
+    ports: []
+
+  api:
+    container_name: skulpulse-prod-api
+    env_file:
+      - ./apps/api/.env.production
+    ports:
+      - "127.0.0.1:5330:8000"
+    # Migrations/seed: run manually via deploy script — not on every container start.
+    command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --workers 2
+
+  web:
+    container_name: skulpulse-prod-web
+    build:
+      context: ./apps/web
+      dockerfile: Dockerfile
+      args:
+        NEXT_PUBLIC_API_URL: https://api.skulpulse.com/api/v1
+    ports:
+      - "127.0.0.1:3005:3000"
+
+volumes:
+  pgdata:
+    name: skulpulse-prod-pgdata
+  redisdata:
+    name: skulpulse-prod-redisdata
+  media_storage:
+    name: skulpulse-prod-media

@@ -1,0 +1,46 @@
+# Staging slot overrides — separate DB/Redis volumes from production.
+# Usage (repo root):
+#   docker compose -f docker-compose.yml -f docker-compose.staging.yml up -d --build
+#
+# On a single VPS running BOTH slots, use this alongside docker-compose.prod.yml
+# on different ports (see docs/PRODUCTION-DEPLOYMENT.md §AFRICLOUD).
+name: skulpulse-staging
+
+services:
+  postgres:
+    container_name: skulpulse-staging-postgres
+    ports: []
+
+  pgbouncer:
+    container_name: skulpulse-staging-pgbouncer
+    ports: []
+
+  redis:
+    container_name: skulpulse-staging-redis
+    ports: []
+
+  api:
+    container_name: skulpulse-staging-api
+    env_file:
+      - ./apps/api/.env.staging
+    ports:
+      - "127.0.0.1:5331:8000"
+    command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --workers 1
+
+  web:
+    container_name: skulpulse-staging-web
+    build:
+      context: ./apps/web
+      dockerfile: Dockerfile
+      args:
+        NEXT_PUBLIC_API_URL: https://staging.api.skulpulse.com/api/v1
+    ports:
+      - "127.0.0.1:3006:3000"
+
+volumes:
+  pgdata:
+    name: skulpulse-staging-pgdata
+  redisdata:
+    name: skulpulse-staging-redisdata
+  media_storage:
+    name: skulpulse-staging-media
