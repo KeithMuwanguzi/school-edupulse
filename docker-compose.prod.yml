@@ -22,7 +22,7 @@ services:
     container_name: skulpulse-prod-api
     env_file: !reset
       - ./apps/api/.env.production
-    ports:
+    ports: !reset
       - "127.0.0.1:5330:8000"
     # Migrations/seed: run manually via deploy script — not on every container start.
     command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --workers 2
@@ -34,7 +34,7 @@ services:
       dockerfile: Dockerfile
       args:
         NEXT_PUBLIC_API_URL: https://api.skulpulse.com/api/v1
-    ports:
+    ports: !reset
       - "127.0.0.1:3005:3000"
 
 volumes:
