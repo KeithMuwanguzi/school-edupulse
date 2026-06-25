@@ -8,19 +8,19 @@ name: skulpulse-prod
 services:
   postgres:
     container_name: skulpulse-prod-postgres
-    ports: []   # never expose Postgres publicly
+    ports: !reset []
 
   pgbouncer:
     container_name: skulpulse-prod-pgbouncer
-    ports: []
+    ports: !reset []
 
   redis:
     container_name: skulpulse-prod-redis
-    ports: []
+    ports: !reset []
 
   api:
     container_name: skulpulse-prod-api
-    env_file:
+    env_file: !reset
       - ./apps/api/.env.production
     ports:
       - "127.0.0.1:5330:8000"
