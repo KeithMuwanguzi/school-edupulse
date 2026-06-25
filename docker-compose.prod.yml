@@ -1,41 +1,107 @@
-# Production overrides for AFRICLOUD VPS (or any single-slot deploy).
-# Usage (repo root):
-#   docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d --build
+# SkulPulse — production stack (standalone).
 #
-# Bind app ports to localhost only — Caddy on the host terminates TLS and proxies.
+# Do NOT combine with docker-compose.yml on the server — that file is for local dev
+# and merge behaviour breaks ports/env (double bind on 5330, missing .env.docker).
+#
+# Usage (repo root on VPS):
+#   docker compose -f docker-compose.prod.yml up -d --build
+#
+# First boot only:
+#   docker compose -f docker-compose.prod.yml run --rm api alembic upgrade head
+#   docker compose -f docker-compose.prod.yml run --rm api python -m scripts.seed
+#
+# Requires: apps/api/.env.production (see deploy/africloud/env.production.example)
+# Host Caddy proxies 127.0.0.1:5330 (api) and 127.0.0.1:3005 (web).
+
 name: skulpulse-prod
 
 services:
   postgres:
+    image: postgres:16-alpine
     container_name: skulpulse-prod-postgres
-    ports: !reset []
+    environment:
+      POSTGRES_USER: skulpulse
+      POSTGRES_PASSWORD: skulpulse
+      POSTGRES_DB: skulpulse
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U skulpulse -d skulpulse"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    restart: unless-stopped
 
   pgbouncer:
+    image: edoburu/pgbouncer:latest
     container_name: skulpulse-prod-pgbouncer
-    ports: !reset []
+    environment:
+      DB_USER: skulpulse_app
+      DB_PASSWORD: skulpulse_app
+      DB_HOST: postgres
+      DB_NAME: skulpulse
+      LISTEN_PORT: "6432"
+      POOL_MODE: transaction
+      MAX_CLIENT_CONN: "1000"
+      DEFAULT_POOL_SIZE: "25"
+      AUTH_TYPE: scram-sha-256
+      AUTH_QUERY: SELECT username, password FROM public.pgbouncer_get_auth($1)
+    depends_on:
+      postgres:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -h 127.0.0.1 -p 6432 -U skulpulse_app"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    restart: unless-stopped
 
   redis:
+    image: redis:7-alpine
     container_name: skulpulse-prod-redis
-    ports: !reset []
+    command: ["redis-server", "--appendonly", "yes"]
+    volumes:
+      - redisdata:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    restart: unless-stopped
 
   api:
+    build:
+      context: ./apps/api
+      dockerfile: Dockerfile
     container_name: skulpulse-prod-api
-    env_file: !reset
+    env_file:
       - ./apps/api/.env.production
-    ports: !reset
+    ports:
       - "127.0.0.1:5330:8000"
-    # Migrations/seed: run manually via deploy script — not on every container start.
-    command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --workers 2
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      pgbouncer:
+        condition: service_started
+    command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --workers 1
+    volumes:
+      - media_storage:/app/storage
+    restart: unless-stopped
 
   web:
-    container_name: skulpulse-prod-web
     build:
       context: ./apps/web
       dockerfile: Dockerfile
       args:
         NEXT_PUBLIC_API_URL: https://api.skulpulse.com/api/v1
-    ports: !reset
+    container_name: skulpulse-prod-web
+    ports:
       - "127.0.0.1:3005:3000"
+    depends_on:
+      - api
+    restart: unless-stopped
 
 volumes:
   pgdata:

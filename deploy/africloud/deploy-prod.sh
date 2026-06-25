@@ -2,7 +2,7 @@
 # Run on the production VPS from repo root after git pull.
 set -euo pipefail
 
-COMPOSE="docker compose -f docker-compose.yml -f docker-compose.prod.yml"
+COMPOSE="docker compose -f docker-compose.prod.yml"
 
 echo "==> Pull latest images / rebuild"
 $COMPOSE build
