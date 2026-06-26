@@ -80,6 +80,16 @@ class ModuleNotSubscribedError(ForbiddenError):
         )
 
 
+class PasswordChangeRequiredError(ForbiddenError):
+    code = "PASSWORD_CHANGE_REQUIRED"
+    title = "Password change required"
+
+    def __init__(self) -> None:
+        super().__init__(
+            detail="You must set a new password before continuing.",
+        )
+
+
 class NotFoundError(AppError):
     status_code = 404
     code = "NOT_FOUND"
@@ -110,6 +120,11 @@ class DuplicateSchoolCodeError(ConflictError):
 class DuplicateEmisError(ConflictError):
     code = "DUPLICATE_EMIS_NUMBER"
     title = "EMIS number already registered"
+
+
+class DuplicateSchoolEmailError(ConflictError):
+    code = "DUPLICATE_SCHOOL_EMAIL"
+    title = "School email already registered"
 
 
 class IdempotencyConflictError(ConflictError):

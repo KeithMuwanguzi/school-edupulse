@@ -3,11 +3,12 @@ from __future__ import annotations
 
 from uuid import UUID
 
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.enums import ClassLevel
 from app.models.school_class import ClassStream, SchoolClass
+from app.models.student import Student
 from app.core.errors import ValidationError
 from app.schemas.student import (
     GuardianInput,
@@ -105,6 +106,38 @@ def _import_row_to_student_create(
     )
 
 
+async def _find_duplicate(
+    session: AsyncSession,
+    tenant_id: UUID,
+    row: StudentImportRow,
+    *,
+    class_id: UUID,
+) -> Student | None:
+    """Match existing enrolment by LIN, or by name within the same class."""
+    if row.lin and row.lin.strip():
+        by_lin = await session.scalar(
+            select(Student).where(
+                Student.tenant_id == tenant_id,
+                Student.lin == row.lin.strip(),
+                Student.deleted_at.is_(None),
+            )
+        )
+        if by_lin is not None:
+            return by_lin
+
+    first = row.first_name.strip().lower()
+    last = row.last_name.strip().lower()
+    return await session.scalar(
+        select(Student).where(
+            Student.tenant_id == tenant_id,
+            Student.class_id == class_id,
+            func.lower(Student.first_name) == first,
+            func.lower(Student.last_name) == last,
+            Student.deleted_at.is_(None),
+        )
+    )
+
+
 async def _validate_row(
     session: AsyncSession,
     tenant_id: UUID,
@@ -183,6 +216,26 @@ async def import_students(
                         )
                     )
                     continue
+
+                if body.skip_duplicates:
+                    duplicate = await _find_duplicate(
+                        session,
+                        tenant_id,
+                        row,
+                        class_id=enrollment.class_id,
+                    )
+                    if duplicate is not None:
+                        skipped += 1
+                        results.append(
+                            StudentImportRowResult(
+                                line=i,
+                                identifier=ident,
+                                status="skipped",
+                                message=f"Already enrolled as #{duplicate.student_number}",
+                                student_id=duplicate.id,
+                            )
+                        )
+                        continue
 
                 created_student = await create_student(session, tenant_id, enrollment)
                 created += 1

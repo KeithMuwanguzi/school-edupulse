@@ -33,12 +33,15 @@ _staff = require_role("school_admin", "bursar")
 @router.get("/finance/summary", response_model=FinanceSummaryOut)
 async def finance_summary(
     term_id: UUID | None = None,
+    class_id: UUID | None = None,
     ctx: TenantContext = Depends(_staff),
     _mod: TenantContext = Depends(_finance),
     session: AsyncSession = Depends(get_session),
 ) -> FinanceSummaryOut:
     await apply_tenant_guc(session, ctx.tenant_id)
-    return await finance_service.finance_summary(session, ctx.tenant_id, term_id=term_id)
+    return await finance_service.finance_summary(
+        session, ctx.tenant_id, term_id=term_id, class_id=class_id
+    )
 
 
 @router.get("/finance/structures", response_model=list[FeeStructureOut])

@@ -44,7 +44,7 @@ export function UserCatalogList({
   }
 
   return (
-    <div>
+    <div className="space-y-2 md:space-y-0">
       {items.map((user) => (
         <UserRow key={user.id} user={user} isSelf={user.id === currentUserId} />
       ))}

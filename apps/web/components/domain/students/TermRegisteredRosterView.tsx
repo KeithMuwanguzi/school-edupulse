@@ -16,7 +16,7 @@ import {
   useRegisteredRosterQuery,
   useRegisteredRosterSummaryQuery,
 } from "@/store/api/skulpulseApi";
-import { ClassStreamNavigator } from "./ClassStreamNavigator";
+import { ClassStreamPicker } from "./ClassStreamPicker";
 import {
   defaultRegisteredScope,
   registeredScopeToListParams,
@@ -154,19 +154,17 @@ export function TermRegisteredRosterView({ embedded = false }: { embedded?: bool
       )}
 
       {scope && navSummary ? (
-        <div className="flex flex-col gap-4 lg:flex-row">
-          <div className="w-full shrink-0 lg:w-48">
-            <Card className="p-1.5 lg:sticky lg:top-2">
-              <ClassStreamNavigator
-                summary={navSummary}
-                scope={scope}
-                registrationMode
-                onChange={setScope}
-              />
-            </Card>
-          </div>
+        <div className="flex flex-col gap-4">
+          <Card className="p-3 lg:p-1.5 lg:sticky lg:top-2">
+            <ClassStreamPicker
+              summary={navSummary}
+              scope={scope}
+              registrationMode
+              onChange={setScope}
+            />
+          </Card>
 
-          <div className="min-w-0 flex-1">
+          <div className="min-w-0">
             {rosterLoading ? (
               <PageLoader />
             ) : registeredSummary.total_registered === 0 ? (

@@ -7,6 +7,8 @@ import { Card } from "@/components/ui/Card";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { Icon } from "@/components/ui/Icon";
 import { Input } from "@/components/ui/Input";
+import { PageToolbar } from "@/components/ui/PageToolbar";
+import { Select } from "@/components/ui/Select";
 import { RefreshButton, refreshQueries } from "@/components/ui/RefreshButton";
 import { useToast } from "@/components/ui/Toast";
 import { parseError } from "@/lib/apiError";
@@ -154,7 +156,7 @@ export function TeacherAttendanceSection() {
 
   return (
     <div className="space-y-4 animate-fade-rise">
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+      <div className="flex flex-col gap-3">
         <SettingsStatRow
           items={[
             {
@@ -169,24 +171,24 @@ export function TeacherAttendanceSection() {
             { label: "Recorded", value: lessons.filter((l) => l.recorded).length },
           ]}
         />
-        <div className="flex items-center gap-2">
-          <div className="relative">
+        <PageToolbar>
+          <div className="relative w-full sm:w-auto">
             <Icon
               name="calendar"
               size={13}
-              className="pointer-events-none absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400"
+              className="pointer-events-none absolute left-2.5 top-1/2 z-10 -translate-y-1/2 text-slate-400"
             />
             <Input
               type="date"
               value={date}
               max={todayIso()}
               onChange={(e) => setDate(e.target.value)}
-              className="w-40 pl-8"
+              className="w-full pl-8 sm:w-40"
               aria-label="Day"
             />
           </div>
           <RefreshButton onRefresh={refreshAll} isRefreshing={isRefreshing} label="Refresh lessons" />
-        </div>
+        </PageToolbar>
       </div>
 
       {isLoading ? (
@@ -199,9 +201,25 @@ export function TeacherAttendanceSection() {
         />
       ) : (
         <div className="flex flex-col gap-4 lg:flex-row">
-          {/* Lesson list */}
           <div className="w-full shrink-0 lg:w-72">
-            <Card className="divide-y divide-slate-100 lg:sticky lg:top-2">
+            <div className="lg:hidden">
+              <Select
+                value={selectedId ?? ""}
+                onChange={(e) => setSelectedId(e.target.value || null)}
+                className="w-full text-[12px]"
+                aria-label="Lesson"
+              >
+                {lessons.map((l) => {
+                  const st = lessonStatus(l);
+                  return (
+                    <option key={l.id} value={l.id}>
+                      {fmtTime(l.starts_at)} · {l.subject_code} · {classLabel(l)} · {st.label}
+                    </option>
+                  );
+                })}
+              </Select>
+            </div>
+            <Card className="hidden divide-y divide-slate-100 lg:block lg:sticky lg:top-2">
               {lessons.map((l) => {
                 const st = lessonStatus(l);
                 const active = l.id === selectedId;
@@ -271,7 +289,7 @@ export function TeacherAttendanceSection() {
                   </div>
                 )}
 
-                <div className="px-1.5 py-1">
+                <div className={`px-1.5 py-1 ${canEdit && dirty && localRows.length > 0 ? "pb-24 md:pb-1" : ""}`}>
                   {isFetching ? (
                     <p className="py-6 text-center text-[12px] text-slate-400">Loading roster…</p>
                   ) : (
@@ -285,14 +303,24 @@ export function TeacherAttendanceSection() {
                 </div>
 
                 {canEdit && dirty && localRows.length > 0 && (
-                  <div className="sticky bottom-0 flex items-center justify-between gap-2 rounded-b-xl border-t border-brand-100 bg-brand-50/70 px-4 py-2.5 backdrop-blur-sm">
-                    <span className="text-[11px] font-medium text-brand-800">
-                      {localRows.length} students · unsaved changes
-                    </span>
-                    <Button size="sm" loading={saving} onClick={() => void saveRoll()}>
-                      Save roll
-                    </Button>
-                  </div>
+                  <>
+                    <div className="sticky bottom-0 hidden items-center justify-between gap-2 rounded-b-xl border-t border-brand-100 bg-brand-50/70 px-4 py-2.5 backdrop-blur-sm md:flex">
+                      <span className="text-[11px] font-medium text-brand-800">
+                        {localRows.length} students · unsaved changes
+                      </span>
+                      <Button size="sm" loading={saving} onClick={() => void saveRoll()}>
+                        Save roll
+                      </Button>
+                    </div>
+                    <div className="fixed inset-x-0 bottom-0 z-20 border-t border-brand-200 bg-white/95 p-3 shadow-lg backdrop-blur md:hidden">
+                      <p className="mb-2 text-center text-[11px] font-medium text-brand-800">
+                        {localRows.length} students · unsaved changes
+                      </p>
+                      <Button size="sm" className="w-full" loading={saving} onClick={() => void saveRoll()}>
+                        Save roll
+                      </Button>
+                    </div>
+                  </>
                 )}
               </Card>
             ) : (

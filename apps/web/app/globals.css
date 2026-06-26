@@ -140,6 +140,425 @@ body {
   box-shadow: 0 1px 0 rgb(255 255 255 / 0.9) inset;
 }
 
+/* ─── Report card (fixed A4 document) ─────────────────────────────────────── */
+
+.report-card-preview-shell {
+  border-radius: 0.75rem;
+  border: 1px solid rgb(226 232 240 / 0.9);
+  background: rgb(248 250 252 / 0.9);
+  padding: 1rem;
+}
+
+.report-card-page {
+  width: 210mm;
+  flex-shrink: 0;
+}
+
+.report-card-print {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  width: 210mm;
+  min-height: 297mm;
+  background: #fff;
+  color: rgb(30 41 59);
+  font-size: 10.5pt;
+  line-height: 1.35;
+  box-shadow:
+    0 1px 2px rgb(15 23 42 / 0.06),
+    0 8px 24px rgb(15 23 42 / 0.08);
+}
+
+.report-card-frame {
+  pointer-events: none;
+  position: absolute;
+  inset: 7mm;
+  border: 1.5px solid rgb(15 76 67 / 0.55);
+  border-radius: 2px;
+  box-shadow: inset 0 0 0 1px rgb(15 76 67 / 0.12);
+}
+
+.report-card-body {
+  position: relative;
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  padding: 11mm 12mm 10mm;
+}
+
+.report-card-header {
+  display: grid;
+  grid-template-columns: 14mm 1fr 14mm;
+  align-items: center;
+  gap: 3mm;
+  padding-bottom: 3mm;
+  border-bottom: 1.5px solid rgb(15 76 67 / 0.75);
+}
+
+.report-card-header-text {
+  text-align: center;
+}
+
+.report-card-header-crest {
+  visibility: hidden;
+}
+
+.report-card-school-name {
+  font-family: var(--font-serif, Georgia, "Times New Roman", serif);
+  font-size: 15pt;
+  font-weight: 700;
+  line-height: 1.15;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: rgb(15 76 67);
+}
+
+.report-card-contact {
+  margin-top: 1mm;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5mm;
+  font-size: 7.5pt;
+  color: rgb(71 85 105);
+}
+
+.report-card-motto {
+  margin-top: 1.5mm;
+  font-size: 8pt;
+  font-style: italic;
+  font-weight: 500;
+  color: rgb(15 118 110);
+}
+
+.report-card-title-band {
+  display: flex;
+  justify-content: center;
+  margin: 3mm 0;
+}
+
+.report-card-title-band span {
+  border: 1px solid rgb(15 76 67 / 0.25);
+  border-radius: 999px;
+  background: rgb(240 253 250 / 0.8);
+  padding: 1mm 5mm;
+  font-size: 8.5pt;
+  font-weight: 700;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: rgb(15 76 67);
+}
+
+.report-card-identity {
+  border: 1px solid rgb(226 232 240);
+  border-radius: 2px;
+  background: rgb(248 250 252 / 0.65);
+  padding: 2.5mm 3mm;
+  font-size: 9pt;
+}
+
+.report-card-identity-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 1.5mm 4mm;
+  margin-top: 1.5mm;
+}
+
+.report-card-identity-row {
+  display: grid;
+  grid-template-columns: 22mm 1fr;
+  gap: 2mm;
+  align-items: baseline;
+}
+
+.report-card-identity-row--wide {
+  grid-template-columns: 22mm 1fr;
+  padding-bottom: 1.5mm;
+  border-bottom: 1px solid rgb(226 232 240 / 0.9);
+}
+
+.report-card-identity-label {
+  font-size: 7.5pt;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: rgb(100 116 139);
+}
+
+.report-card-identity-value {
+  font-weight: 600;
+  color: rgb(15 23 42);
+}
+
+.report-card-notice {
+  margin-top: 3mm;
+  border: 1px solid rgb(252 211 77 / 0.8);
+  border-radius: 2px;
+  background: rgb(255 251 235 / 0.9);
+  padding: 2mm 3mm;
+  font-size: 8pt;
+  color: rgb(146 64 14);
+}
+
+.report-card-section {
+  margin-top: 4mm;
+}
+
+.report-card-section-title {
+  margin-bottom: 1.5mm;
+  font-size: 8pt;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: rgb(15 76 67);
+}
+
+.report-card-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 8.5pt;
+}
+
+.report-card-table--compact {
+  font-size: 7.5pt;
+}
+
+.report-card-table th,
+.report-card-table td {
+  border: 1px solid rgb(203 213 225);
+  padding: 1.2mm 1.5mm;
+  vertical-align: middle;
+}
+
+.report-card-table th {
+  background: rgb(15 76 67);
+  color: #fff;
+  font-size: 7.5pt;
+  font-weight: 600;
+  text-align: center;
+}
+
+.report-card-table th.report-card-table-sticky,
+.report-card-table td.report-card-table-sticky {
+  text-align: left;
+}
+
+.report-card-table tbody tr:nth-child(even) {
+  background: rgb(248 250 252 / 0.85);
+}
+
+.report-card-num {
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+}
+
+.report-card-strong {
+  font-weight: 700;
+}
+
+.report-card-comment-cell {
+  font-size: 8pt;
+  color: rgb(71 85 105);
+}
+
+.report-card-core-tag {
+  margin-left: 1mm;
+  font-size: 6pt;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: rgb(15 118 110);
+}
+
+.report-card-total-row {
+  background: rgb(240 253 250 / 0.9) !important;
+  font-weight: 700;
+}
+
+.report-card-total-row td:first-child {
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  font-size: 7.5pt;
+}
+
+.report-card-muted {
+  font-weight: 400;
+  color: rgb(100 116 139);
+}
+
+.report-card-performance {
+  display: grid;
+  grid-template-columns: 1fr 38mm;
+  gap: 3mm;
+  align-items: start;
+}
+
+.report-card-summary-bar {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 2mm;
+  margin-top: 2.5mm;
+  border-top: 1px solid rgb(226 232 240);
+  padding-top: 2mm;
+}
+
+.report-card-summary-stat {
+  text-align: center;
+}
+
+.report-card-summary-stat--emphasis .report-card-summary-value {
+  color: rgb(15 76 67);
+}
+
+.report-card-summary-label {
+  display: block;
+  font-size: 6.5pt;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: rgb(100 116 139);
+}
+
+.report-card-summary-value {
+  display: block;
+  margin-top: 0.5mm;
+  font-size: 11pt;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  color: rgb(15 23 42);
+}
+
+.report-card-sidebar {
+  border: 1px solid rgb(226 232 240);
+  border-radius: 2px;
+  background: rgb(248 250 252 / 0.5);
+  padding: 2.5mm;
+  font-size: 7.5pt;
+}
+
+.report-card-sidebar-title {
+  margin-bottom: 1.5mm;
+  text-align: center;
+  font-size: 7pt;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: rgb(15 76 67);
+}
+
+.report-card-sidebar-subtitle {
+  margin-top: 2mm;
+  font-weight: 600;
+  color: rgb(51 65 85);
+}
+
+.report-card-grading-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.8mm;
+}
+
+.report-card-grading-list li {
+  display: flex;
+  justify-content: space-between;
+  gap: 2mm;
+  color: rgb(51 65 85);
+}
+
+.report-card-comments {
+  display: grid;
+  gap: 2mm;
+}
+
+.report-card-comment {
+  border: 1px solid rgb(226 232 240);
+  border-radius: 2px;
+  background: rgb(255 255 255);
+  padding: 2mm 2.5mm;
+}
+
+.report-card-comment-role {
+  font-size: 7pt;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: rgb(100 116 139);
+}
+
+.report-card-comment-text {
+  margin-top: 1mm;
+  min-height: 4mm;
+  font-size: 8.5pt;
+  line-height: 1.4;
+  color: rgb(30 41 59);
+}
+
+.report-card-notes {
+  border: 1px solid rgb(226 232 240);
+  border-radius: 2px;
+  background: rgb(248 250 252 / 0.55);
+  padding: 2.5mm 3mm;
+  font-size: 8pt;
+  color: rgb(51 65 85);
+}
+
+.report-card-notes-title {
+  font-size: 7pt;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: rgb(100 116 139);
+}
+
+.report-card-notes ul {
+  margin-top: 1.5mm;
+  display: flex;
+  flex-direction: column;
+  gap: 1mm;
+  padding-left: 3.5mm;
+  list-style: disc;
+}
+
+.report-card-footer {
+  margin-top: auto;
+  padding-top: 5mm;
+}
+
+.report-card-signatures {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8mm;
+}
+
+.report-card-signature-line {
+  height: 7mm;
+  border-bottom: 1px solid rgb(100 116 139);
+}
+
+.report-card-signature-label {
+  margin-top: 1mm;
+  font-size: 7pt;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: rgb(100 116 139);
+}
+
+.report-card-signature-name {
+  font-weight: 500;
+  text-transform: none;
+  letter-spacing: normal;
+  color: rgb(51 65 85);
+}
+
+.report-card-meta {
+  margin-top: 3mm;
+  padding-top: 2mm;
+  border-top: 1px solid rgb(226 232 240);
+  font-size: 6.5pt;
+  color: rgb(100 116 139);
+  text-align: center;
+}
+
 @media print {
   @page {
     size: A4 portrait;
@@ -168,16 +587,26 @@ body {
     left: 0;
     top: 0;
     margin: 0 !important;
-    max-width: none !important;
     width: 210mm !important;
+  }
+
+  body.printing-report-cards .report-card-viewport-scaler,
+  body.printing-report-cards .report-card-viewport-slot {
+    transform: none !important;
+    width: 210mm !important;
+    height: auto !important;
+  }
+
+  body.printing-report-cards .report-card-preview-shell {
+    padding: 0 !important;
+    border: none !important;
+    background: transparent !important;
   }
 
   .report-card-print {
     width: 210mm !important;
     min-height: 297mm !important;
     box-shadow: none !important;
-    ring: 0 !important;
-    border: none !important;
   }
 
   main {

@@ -10,6 +10,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.errors import ConflictError, NotFoundError, ValidationError
 from app.models.academic import AcademicYear, Term
+from app.core.school_levels import LEVEL_CYCLE
 from app.models.enums import AcademicYearStatus, ClassLevel, NcdcCycle, TermStatus
 from app.models.school_class import ClassStream, SchoolClass
 from app.models.subject import Subject
@@ -24,16 +25,6 @@ from app.schemas.teacher import (
 from app.services.tenant_user_service import _school_code
 
 TEACHING_ROLES = frozenset({"teacher", "deputy_head"})
-
-_LEVEL_CYCLE: dict[ClassLevel, NcdcCycle] = {
-    ClassLevel.P1: NcdcCycle.cycle_1,
-    ClassLevel.P2: NcdcCycle.cycle_1,
-    ClassLevel.P3: NcdcCycle.cycle_1,
-    ClassLevel.P4: NcdcCycle.cycle_2,
-    ClassLevel.P5: NcdcCycle.cycle_3,
-    ClassLevel.P6: NcdcCycle.cycle_3,
-    ClassLevel.P7: NcdcCycle.cycle_3,
-}
 
 
 async def _active_year(session: AsyncSession, tenant_id: UUID) -> AcademicYear:
@@ -141,7 +132,7 @@ async def _stream_row(
 
 
 def _subject_matches_class(subject: Subject, school_class: SchoolClass) -> bool:
-    required = _LEVEL_CYCLE[school_class.level]
+    required = LEVEL_CYCLE[school_class.level]
     return required in subject.ncdc_cycles
 
 

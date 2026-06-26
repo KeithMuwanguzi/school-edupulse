@@ -14,7 +14,7 @@ from app.schemas.tenant_user import (
     GuardianImportRequest,
     ImportUsersResponse,
     NextLoginIdOut,
-    PasswordResetStubResponse,
+    PasswordResetResponse,
     RoleOption,
     TeacherImportRequest,
     TenantUserCreate,
@@ -112,15 +112,28 @@ async def update_user(
     return result
 
 
-@router.post("/users/{user_id}/password-reset", response_model=PasswordResetStubResponse)
+@router.post("/users/{user_id}/password-reset", response_model=PasswordResetResponse)
 async def reset_password(
     user_id: UUID,
     request: Request,
     ctx: TenantContext = Depends(_admin),
     session: AsyncSession = Depends(get_session),
-) -> PasswordResetStubResponse:
+) -> PasswordResetResponse:
     await apply_tenant_guc(session, ctx.tenant_id)
-    result = await tenant_user_service.reset_password_stub(session, ctx.tenant_id, user_id)
+    from sqlalchemy import select
+
+    from app.models.school import School
+
+    school_name = await session.scalar(
+        select(School.name).where(School.tenant_id == ctx.tenant_id)
+    )
+    result = await tenant_user_service.reset_user_password(
+        session,
+        ctx.tenant_id,
+        user_id,
+        school_name=school_name or ctx.tenant_id.hex[:8],
+        reset_by="School administrator",
+    )
     await record_audit(
         session,
         actor_type=ActorType.tenant_user,

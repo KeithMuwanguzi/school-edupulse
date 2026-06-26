@@ -48,6 +48,19 @@ async def test_setup_primary_classes(client, admin_headers):
     assert len(listed.json()) == 7
 
 
+async def test_setup_nursery_classes(client, admin_headers):
+    headers = await _headers(client, admin_headers, "CLS3N")
+    resp = await client.post("/api/v1/tenant/classes/setup-nursery", headers=headers)
+    assert resp.status_code == 200, resp.text
+    body = resp.json()
+    assert len(body) == 3
+    levels = [row["level"] for row in body]
+    assert levels == ["BABY", "MIDDLE", "TOP"]
+
+    listed = await client.get("/api/v1/tenant/classes", headers=headers)
+    assert len(listed.json()) == 3
+
+
 async def test_setup_primary_idempotent_error(client, admin_headers):
     headers = await _headers(client, admin_headers, "CLS4")
     assert (await client.post("/api/v1/tenant/classes/setup-primary", headers=headers)).status_code == 200

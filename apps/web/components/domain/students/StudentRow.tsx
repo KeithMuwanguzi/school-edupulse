@@ -12,6 +12,7 @@ import {
   useUpdateStudentMutation,
 } from "@/store/api/skulpulseApi";
 import { useToast } from "@/components/ui/Toast";
+import { useConfirm } from "@/components/ui/Dialog";
 import { STUDENT_NAME_LABELS } from "./studentOptions";
 
 const compactControl = "h-7 text-[12px]";
@@ -29,6 +30,7 @@ interface StudentRowProps {
 
 export function StudentRow({ student, classes }: StudentRowProps) {
   const { toast } = useToast();
+  const confirm = useConfirm();
   const [editing, setEditing] = useState(false);
   const [firstName, setFirstName] = useState(student.first_name);
   const [lastName, setLastName] = useState(student.last_name);
@@ -98,7 +100,13 @@ export function StudentRow({ student, classes }: StudentRowProps) {
   }
 
   async function remove() {
-    if (!window.confirm(`Remove ${student.student_number}?`)) return;
+    const ok = await confirm({
+      title: "Remove learner",
+      description: `Remove ${student.student_number} from the register? This cannot be undone.`,
+      confirmLabel: "Remove",
+      tone: "danger",
+    });
+    if (!ok) return;
     try {
       await deleteStudent(student.id).unwrap();
       toast("Student removed.", "success");

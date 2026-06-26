@@ -8,6 +8,7 @@ import { Select } from "@/components/ui/Select";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { Icon } from "@/components/ui/Icon";
 import { useToast } from "@/components/ui/Toast";
+import { useConfirm } from "@/components/ui/Dialog";
 import { parseError } from "@/lib/apiError";
 import type { StudentGuardianOut } from "@/lib/types";
 import {
@@ -95,6 +96,7 @@ interface StudentGuardiansPanelProps {
 
 export function StudentGuardiansPanel({ studentId, guardians, isAdmin }: StudentGuardiansPanelProps) {
   const { toast } = useToast();
+  const confirm = useConfirm();
   const { data: portalUsers = [] } = useListTenantUsersQuery(undefined, { skip: !isAdmin });
   const parents = portalUsers.filter((u) => u.role === "parent");
   const [adding, setAdding] = useState(false);
@@ -142,7 +144,13 @@ export function StudentGuardiansPanel({ studentId, guardians, isAdmin }: Student
   }
 
   async function remove(g: StudentGuardianOut) {
-    if (!window.confirm(`Remove ${g.full_name}?`)) return;
+    const ok = await confirm({
+      title: "Remove guardian",
+      description: `Remove ${g.full_name} from this learner's profile?`,
+      confirmLabel: "Remove",
+      tone: "danger",
+    });
+    if (!ok) return;
     try {
       await deleteGuardian(g.id).unwrap();
       toast("Guardian removed.", "success");

@@ -41,7 +41,7 @@ class OnboardRequest(BaseModel):
     parish_id: UUID | None = None
     address_line: str | None = None
     phone: str | None = Field(default=None, max_length=20)
-    email: EmailStr | None = None
+    email: EmailStr
     head_teacher_name: str | None = None
     contact_person_name: str | None = None
     contact_person_phone: str | None = Field(default=None, max_length=20)
@@ -67,6 +67,11 @@ class OnboardRequest(BaseModel):
         if "core" not in keys:
             keys.insert(0, "core")
         return keys
+
+    @field_validator("email")
+    @classmethod
+    def _normalize_email(cls, v: EmailStr) -> str:
+        return str(v).strip().lower()
 
 
 class AcademicYearOut(BaseModel):
@@ -182,6 +187,13 @@ class SchoolUpdate(BaseModel):
     report_next_term_note: str | None = Field(default=None, max_length=255)
     status: TenantStatus | None = None
     version: int | None = Field(default=None, description="optimistic lock check")
+
+    @field_validator("email")
+    @classmethod
+    def _normalize_email(cls, v: EmailStr | None) -> str | None:
+        if v is None:
+            return None
+        return str(v).strip().lower()
 
     @field_validator("student_number_prefix")
     @classmethod

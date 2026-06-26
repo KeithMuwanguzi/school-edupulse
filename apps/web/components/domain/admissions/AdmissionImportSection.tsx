@@ -2,12 +2,14 @@
 
 import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
+import { ImportReadinessBanner } from "@/components/domain/ImportReadinessBanner";
 import { SettingsHint } from "@/components/layout/settingsUi";
 import { Button } from "@/components/ui/Button";
 import { Card, CardBody, CardHeader } from "@/components/ui/Card";
 import { FormField } from "@/components/ui/FormField";
 import { Select } from "@/components/ui/Select";
 import { parseError } from "@/lib/apiError";
+import { toastAdmissionImport } from "@/lib/importToasts";
 import type { AdmissionBatchResponse } from "@/lib/types";
 import {
   useBatchCreateAdmissionApplicationsMutation,
@@ -99,13 +101,9 @@ export function AdmissionImportSection() {
         }),
       }).unwrap();
       setResult(res);
+      toastAdmissionImport(toast, res);
       if (res.failed === 0) {
-        toast(`${res.created} application(s) added to the pipeline.`, "success");
         router.push("/app/m/admissions");
-      } else if (res.created > 0) {
-        toast(`${res.created} added · ${res.failed} failed.`, "error");
-      } else {
-        toast("Import failed.", "error");
       }
     } catch (err) {
       const p = parseError(err);
@@ -120,19 +118,28 @@ export function AdmissionImportSection() {
         description="Upload a spreadsheet when you already have applicant lists from interviews or open days."
       />
       <CardBody className="space-y-4 py-3">
-        <div className="flex flex-wrap gap-x-3 gap-y-1">
-          {STEPS.map((label, i) => {
-            const active = STEPS.indexOf(step) === i;
-            const done = STEPS.indexOf(step) > i;
-            return (
-              <span
-                key={label}
-                className={`text-[11px] ${active ? "font-medium text-brand-700" : done ? "text-slate-500" : "text-slate-300"}`}
-              >
-                {i + 1}. {label}
-              </span>
-            );
-          })}
+        <ImportReadinessBanner flow="admissions" />
+        <div className="-mx-0.5 overflow-x-auto px-0.5 pb-0.5 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+          <div className="inline-flex min-w-max gap-2">
+            {STEPS.map((label, i) => {
+              const active = STEPS.indexOf(step) === i;
+              const done = STEPS.indexOf(step) > i;
+              return (
+                <span
+                  key={label}
+                  className={`shrink-0 rounded-full px-2.5 py-1 text-[11px] ${
+                    active
+                      ? "bg-brand-600 font-medium text-white"
+                      : done
+                        ? "bg-slate-100 text-slate-600"
+                        : "text-slate-300"
+                  }`}
+                >
+                  {i + 1}. {label}
+                </span>
+              );
+            })}
+          </div>
         </div>
 
         {step === "Upload" && (
@@ -195,7 +202,20 @@ export function AdmissionImportSection() {
               ))}
             </div>
             {previewRows.length > 0 && (
-              <div className="overflow-x-auto rounded border border-slate-100">
+              <>
+                <div className="space-y-2 md:hidden">
+                  {previewRows.map((row, i) => (
+                    <div key={i} className="rounded-lg border border-slate-100 bg-slate-50/60 p-2.5 text-[11px]">
+                      <p className="mb-1 font-medium text-slate-600">Row {i + 1}</p>
+                      {ADMISSION_IMPORT_FIELDS.filter((f) => columnMap[f.key] !== undefined).map((f) => (
+                        <p key={f.key} className="text-slate-500">
+                          <span className="text-slate-400">{f.label}:</span> {row[f.key] || "—"}
+                        </p>
+                      ))}
+                    </div>
+                  ))}
+                </div>
+                <div className="hidden overflow-x-auto rounded border border-slate-100 md:block">
                 <table className="min-w-full text-[10px] text-slate-500">
                   <thead>
                     <tr className="bg-slate-50">
@@ -222,13 +242,14 @@ export function AdmissionImportSection() {
                     ))}
                   </tbody>
                 </table>
-              </div>
+                </div>
+              </>
             )}
-            <div className="flex gap-2">
-              <Button size="sm" variant="ghost" onClick={() => setStep("Upload")}>
+            <div className="flex flex-col gap-2 sm:flex-row">
+              <Button size="sm" variant="ghost" className="w-full sm:w-auto" onClick={() => setStep("Upload")}>
                 Back
               </Button>
-              <Button size="sm" onClick={applyMapping}>
+              <Button size="sm" className="w-full sm:w-auto" onClick={applyMapping}>
                 Continue
               </Button>
             </div>
@@ -287,11 +308,11 @@ export function AdmissionImportSection() {
                 Created {result.created} · Failed {result.failed}
               </p>
             )}
-            <div className="flex gap-2">
-              <Button size="sm" variant="ghost" onClick={() => setStep("Map columns")}>
+            <div className="flex flex-col gap-2 sm:flex-row">
+              <Button size="sm" variant="ghost" className="w-full sm:w-auto" onClick={() => setStep("Map columns")}>
                 Back
               </Button>
-              <Button size="sm" loading={isLoading} onClick={() => void runImport()}>
+              <Button size="sm" className="w-full sm:w-auto" loading={isLoading} onClick={() => void runImport()}>
                 Import {mappedRows.length} application{mappedRows.length === 1 ? "" : "s"}
               </Button>
             </div>

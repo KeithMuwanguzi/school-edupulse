@@ -9,13 +9,14 @@ import { ErrorBanner } from "@/components/ui/ErrorBanner";
 import { Input } from "@/components/ui/Input";
 import { RefreshButton } from "@/components/ui/RefreshButton";
 import { PageLoader } from "@/components/ui/Spinner";
+import { PageToolbar, PageToolbarGroup } from "@/components/ui/PageToolbar";
 import {
   SettingsFilterPills,
   SettingsHint,
   SettingsStatRow,
 } from "@/components/layout/settingsUi";
 import { parseError } from "@/lib/apiError";
-import { NCDC_CYCLE_LABELS, type NcdcSubjectSuggestion } from "@/lib/ncdcSubjectCatalog";
+import { NCDC_CYCLE_LABELS, type NcdcSubjectSuggestion, type PrimaryDefaultPreviewRow } from "@/lib/ncdcSubjectCatalog";
 import { formatCycleLabels, subjectByCode, subjectHasCycle } from "@/lib/subjectCycleUtils";
 import type { NcdcCycle } from "@/lib/types";
 import {
@@ -25,21 +26,15 @@ import {
 import { useToast } from "@/components/ui/Toast";
 import { SubjectAddPanel } from "./SubjectAddPanel";
 import { SubjectCatalogList } from "./SubjectCatalogList";
+import { SubjectDefaultsPanel, defaultIsCore as defaultIsCoreForCatalog } from "./SubjectDefaultsPanel";
 
 const CYCLE_FILTERS: { id: "all" | NcdcCycle; label: string }[] = [
   { id: "all", label: "All" },
+  { id: "ecd", label: "Baby–Top" },
   { id: "cycle_1", label: "P1–P3" },
   { id: "cycle_2", label: "P4" },
   { id: "cycle_3", label: "P5–P7" },
 ];
-
-const CORE_PREFIXES = ["ENG", "MTC", "MATH", "SCI", "SST", "SOCIAL"];
-
-function defaultIsCoreForCatalog(code: string, ple?: boolean): boolean {
-  if (ple) return true;
-  const normalized = code.replace(/\s/g, "").toUpperCase();
-  return CORE_PREFIXES.some((prefix) => normalized.startsWith(prefix));
-}
 
 export function SubjectCatalogView() {
   const { toast } = useToast();
@@ -48,17 +43,21 @@ export function SubjectCatalogView() {
   const [search, setSearch] = useState("");
   const [cycleFilter, setCycleFilter] = useState<"all" | NcdcCycle>("all");
   const [addOpen, setAddOpen] = useState(false);
+  const [defaultsOpen, setDefaultsOpen] = useState(false);
 
   const list = subjects ?? [];
   const total = list.length;
 
   useEffect(() => {
-    if (total === 0) setAddOpen(true);
+    if (total === 0) {
+      setDefaultsOpen(true);
+      setAddOpen(false);
+    }
   }, [total]);
 
   const cycleCounts = useMemo(
     () =>
-      (["cycle_1", "cycle_2", "cycle_3"] as NcdcCycle[]).map((cycle) => ({
+      (["ecd", "cycle_1", "cycle_2", "cycle_3"] as NcdcCycle[]).map((cycle) => ({
         label: NCDC_CYCLE_LABELS[cycle].short,
         value: list.filter((s) => subjectHasCycle(s, cycle)).length,
       })),
@@ -95,6 +94,33 @@ export function SubjectCatalogView() {
     }
   }
 
+  async function addPrimaryDefaults(rows: PrimaryDefaultPreviewRow[], label: string) {
+    let touched = 0;
+    for (const row of rows) {
+      if (row.missingCycles.length === 0) continue;
+      try {
+        await createSubject({
+          code: row.code,
+          name: row.existingName ?? row.name,
+          ncdc_cycles: row.missingCycles,
+          is_core: defaultIsCoreForCatalog(row.code, row.ple),
+        }).unwrap();
+        touched += 1;
+      } catch (err) {
+        const p = parseError(err);
+        toast(p.message, "error", p.requestId);
+        break;
+      }
+    }
+    if (touched > 0) {
+      toast(
+        `${touched} core subject${touched === 1 ? "" : "s"} added for ${label}.`,
+        "success",
+      );
+      setDefaultsOpen(false);
+    }
+  }
+
   async function bulkAdd(items: NcdcSubjectSuggestion[]) {
     let touched = 0;
     for (const item of items) {
@@ -124,15 +150,15 @@ export function SubjectCatalogView() {
   return (
     <div className="space-y-4">
       {/* Toolbar */}
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+      <PageToolbar className="sm:justify-between">
         {total > 0 ? (
           <SettingsStatRow items={[{ label: "Codes", value: total }, ...cycleCounts]} />
         ) : (
           <span />
         )}
-        <div className="flex items-center gap-2">
+        <PageToolbarGroup className="w-full sm:w-auto">
           {total > 0 && (
-            <div className="relative">
+            <div className="relative w-full sm:w-44">
               <Icon
                 name="search"
                 size={13}
@@ -142,27 +168,93 @@ export function SubjectCatalogView() {
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
                 placeholder="Search subjects…"
-                className="w-44 pl-8"
+                className="w-full pl-8"
                 aria-label="Search subjects"
               />
             </div>
           )}
-          {!addOpen && (
-            <Button size="sm" onClick={() => setAddOpen(true)}>
-              <Icon name="plus" size={13} />
-              Add subjects
-            </Button>
+          {!addOpen && !defaultsOpen && (
+            <>
+              <Button
+                size="sm"
+                variant="secondary"
+                className="w-full sm:w-auto"
+                onClick={() => {
+                  setDefaultsOpen(true);
+                  setAddOpen(false);
+                }}
+              >
+                <Icon name="spark" size={13} />
+                Add defaults
+              </Button>
+              <Button size="sm" className="w-full sm:w-auto" onClick={() => {
+                setAddOpen(true);
+                setDefaultsOpen(false);
+              }}>
+                <Icon name="plus" size={13} />
+                Custom subject
+              </Button>
+            </>
           )}
           <RefreshButton onRefresh={refetch} isRefreshing={isFetching} label="Refresh subjects" />
-        </div>
-      </div>
+        </PageToolbarGroup>
+      </PageToolbar>
+
+      {defaultsOpen && (
+        <Card>
+          <CardHeader
+            icon={<Icon name="spark" size={13} />}
+            title="Default subjects"
+            description="One-click setup for P1–P3 report-card subjects or P4–P7 exam core."
+            action={
+              total > 0 ? (
+                <button
+                  type="button"
+                  onClick={() => setDefaultsOpen(false)}
+                  className="flex h-7 w-7 items-center justify-center rounded-lg text-slate-400 hover:bg-slate-100 hover:text-slate-700"
+                  aria-label="Close"
+                >
+                  <Icon name="x" size={15} />
+                </button>
+              ) : undefined
+            }
+          />
+          <CardBody>
+            <SubjectDefaultsPanel
+              subjects={list}
+              creating={creating}
+              onAddDefaults={addPrimaryDefaults}
+              onClose={
+                total > 0
+                  ? () => setDefaultsOpen(false)
+                  : undefined
+              }
+            />
+            {total === 0 && (
+              <p className="mt-3 border-t border-slate-100 pt-3 text-[11px] text-slate-500">
+                Need something else?{" "}
+                <button
+                  type="button"
+                  className="font-semibold text-brand-700 hover:underline"
+                  onClick={() => {
+                    setAddOpen(true);
+                    setDefaultsOpen(false);
+                  }}
+                >
+                  Add a custom subject
+                </button>
+              </p>
+            )}
+          </CardBody>
+        </Card>
+      )}
 
       {addOpen && (
         <Card>
           <CardHeader
             icon={<Icon name="book" size={13} />}
-            title="Add subjects"
-            description="Pick from the NCDC list or enter codes manually."
+            title="Custom subject"
+            description="Pick from the full NCDC list or enter your own code."
             action={
               total > 0 ? (
                 <button
@@ -190,7 +282,7 @@ export function SubjectCatalogView() {
 
       {total > 0 ? (
         <Card>
-          <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-100 px-3 py-2.5 sm:px-4">
+          <div className="flex flex-col gap-2 border-b border-slate-100 px-3 py-2.5 sm:flex-row sm:items-center sm:justify-between sm:px-4">
             <SettingsFilterPills
               options={CYCLE_FILTERS}
               active={cycleFilter}
@@ -198,20 +290,26 @@ export function SubjectCatalogView() {
             />
             <SettingsHint>One code can span multiple cycles.</SettingsHint>
           </div>
-          <div className="px-1.5 py-1.5">
+          <div className="space-y-2 px-1.5 py-1.5 md:space-y-0">
             <SubjectCatalogList subjects={list} search={search} cycleFilter={cycleFilter} />
           </div>
         </Card>
-      ) : !addOpen ? (
+      ) : !addOpen && !defaultsOpen ? (
         <EmptyState
           icon={<Icon name="book" size={18} />}
           title="No subjects yet"
-          description="Build your catalogue from the NCDC list or enter codes manually."
+          description="Start with P1–P3 or P4–P7 defaults, or add subjects one by one."
           action={
-            <Button size="sm" onClick={() => setAddOpen(true)}>
-              <Icon name="plus" size={13} />
-              Add subjects
-            </Button>
+            <div className="flex flex-wrap justify-center gap-2">
+              <Button size="sm" variant="accent" onClick={() => setDefaultsOpen(true)}>
+                <Icon name="spark" size={13} />
+                Add defaults
+              </Button>
+              <Button size="sm" variant="secondary" onClick={() => setAddOpen(true)}>
+                <Icon name="plus" size={13} />
+                Custom subject
+              </Button>
+            </div>
           }
         />
       ) : null}

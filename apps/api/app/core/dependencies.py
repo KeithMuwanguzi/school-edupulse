@@ -11,7 +11,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.context import TenantContext, set_tenant_context
 from app.core.db import apply_bypass_guc, apply_tenant_guc, get_session
-from app.core.errors import ForbiddenError, ModuleNotSubscribedError, TokenError
+from app.core.errors import ForbiddenError, ModuleNotSubscribedError, PasswordChangeRequiredError, TokenError
 from app.core.security import decode_token
 
 bearer = HTTPBearer(auto_error=False)
@@ -25,6 +25,7 @@ class Principal:
     tenant_id: UUID | None = None
     school_code: str | None = None
     modules: tuple[str, ...] = field(default_factory=tuple)
+    must_change_password: bool = False
 
 
 def _set_actor_state(request: Request, principal: Principal) -> None:
@@ -60,6 +61,7 @@ async def get_principal(
         tenant_id=UUID(tenant_id) if tenant_id else None,
         school_code=payload.get("school_code"),
         modules=modules,
+        must_change_password=bool(payload.get("must_change_password")),
     )
     _set_actor_state(request, principal)
     return principal
@@ -88,6 +90,8 @@ async def get_tenant_context(
     """Tenant routes: enforce tenant_user, set the RLS GUC + contextvar."""
     if principal.type != "tenant_user" or principal.tenant_id is None:
         raise ForbiddenError("Tenant access required.")
+    if principal.must_change_password:
+        raise PasswordChangeRequiredError()
     ctx = TenantContext(
         tenant_id=principal.tenant_id,
         user_id=principal.user_id,

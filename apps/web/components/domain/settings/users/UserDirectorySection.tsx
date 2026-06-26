@@ -10,6 +10,7 @@ import { Card } from "@/components/ui/Card";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { Icon } from "@/components/ui/Icon";
 import { Input } from "@/components/ui/Input";
+import { PageToolbar, PageToolbarGroup } from "@/components/ui/PageToolbar";
 import { RefreshButton } from "@/components/ui/RefreshButton";
 import type { PortalUser } from "@/lib/types";
 import { UserCatalogList } from "./UserCatalogList";
@@ -62,17 +63,18 @@ export function UserDirectorySection({
 
   return (
     <div className="space-y-4">
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-        <SettingsStatRow
-          items={[
-            { label: "Total", value: users.length },
-            { label: "Staff", value: staffCount },
-            { label: "Parents", value: parentCount },
-            { label: "Active", value: activeCount },
-          ]}
-        />
-        <div className="flex items-center gap-2">
-          <div className="relative">
+      <SettingsStatRow
+        items={[
+          { label: "Total", value: users.length },
+          { label: "Staff", value: staffCount },
+          { label: "Parents", value: parentCount },
+          { label: "Active", value: activeCount },
+        ]}
+      />
+
+      <PageToolbar>
+        <PageToolbarGroup className="w-full sm:flex-1">
+          <div className="relative w-full">
             <Icon
               name="search"
               size={13}
@@ -82,19 +84,19 @@ export function UserDirectorySection({
               value={query}
               onChange={(e) => setQuery(e.target.value)}
               placeholder="Search users…"
-              className="w-44 pl-8"
+              className="w-full pl-8"
               aria-label="Search users"
             />
           </div>
-          <Button size="sm" onClick={onAddUser}>
-            <Icon name="plus" size={13} />
-            Add user
-          </Button>
-          {onRefresh && (
-            <RefreshButton onRefresh={onRefresh} isRefreshing={isRefreshing} label="Refresh users" />
-          )}
-        </div>
-      </div>
+        </PageToolbarGroup>
+        <Button size="sm" className="w-full sm:w-auto" onClick={onAddUser}>
+          <Icon name="plus" size={13} />
+          Add user
+        </Button>
+        {onRefresh && (
+          <RefreshButton onRefresh={onRefresh} isRefreshing={isRefreshing} label="Refresh users" />
+        )}
+      </PageToolbar>
 
       <Card>
         <div className="border-b border-slate-100 px-3 py-2.5 sm:px-4">

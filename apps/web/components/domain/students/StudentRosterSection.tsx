@@ -12,7 +12,8 @@ import { Input } from "@/components/ui/Input";
 import { RefreshButton, refreshQueries } from "@/components/ui/RefreshButton";
 import type { RosterScope } from "@/lib/types";
 import { useListClassesQuery, useListStudentsQuery, useRosterSummaryQuery } from "@/store/api/skulpulseApi";
-import { ClassStreamNavigator } from "./ClassStreamNavigator";
+import { PageToolbar, PageToolbarGroup } from "@/components/ui/PageToolbar";
+import { ClassStreamPicker } from "./ClassStreamPicker";
 import { StudentOverviewCards } from "./StudentOverviewCards";
 import { StudentBulkMoveBar } from "./StudentBulkMoveBar";
 import { StudentRosterTable } from "./StudentRosterTable";
@@ -99,22 +100,21 @@ export function StudentRosterSection({
   }
 
   const actions = isAdmin ? (
-    <div className="flex items-center gap-2">
-      <Button size="sm" variant="secondary" onClick={onImport}>
+    <PageToolbarGroup>
+      <Button size="sm" variant="secondary" onClick={onImport} className="w-full sm:w-auto">
         <Icon name="inbox" size={13} />
         Import
       </Button>
-      <Button size="sm" onClick={onEnroll}>
+      <Button size="sm" onClick={onEnroll} className="w-full sm:w-auto">
         <Icon name="plus" size={13} />
         Enroll student
       </Button>
-    </div>
+    </PageToolbarGroup>
   ) : null;
 
   return (
     <div className="space-y-4">
-      {/* Toolbar */}
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+      <div className="flex flex-col gap-3">
         {hasAnyStudents && summary ? (
           <SettingsStatRow
             items={
@@ -130,36 +130,38 @@ export function StudentRosterSection({
                   ]
             }
           />
-        ) : (
-          <span />
-        )}
-        <div className="flex items-center gap-2">
-          <Link
-            href="/app/m/students/term"
-            className="hidden items-center gap-1 rounded-md border border-slate-200 px-2 py-1 text-[10px] font-medium text-slate-500 hover:bg-slate-50 hover:text-slate-700 sm:inline-flex"
-          >
-            <Icon name="clipboard" size={12} />
-            Term check-in
-          </Link>
-          {hasAnyStudents && (
-            <div className="relative">
-              <Icon
-                name="search"
-                size={13}
-                className="pointer-events-none absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400"
-              />
-              <Input
-                value={query}
-                onChange={(e) => setQuery(e.target.value)}
-                placeholder="Search students…"
-                className="w-44 pl-8"
-                aria-label="Search students"
-              />
-            </div>
-          )}
-          <RefreshButton onRefresh={refreshAll} isRefreshing={isRefreshing} label="Refresh students" />
-          {actions}
-        </div>
+        ) : null}
+        <PageToolbar>
+          <PageToolbarGroup className="w-full sm:mr-auto sm:w-auto">
+            <Link
+              href="/app/m/students/term"
+              className="inline-flex w-full items-center justify-center gap-1 rounded-md border border-slate-200 px-2 py-1.5 text-[11px] font-medium text-slate-500 hover:bg-slate-50 hover:text-slate-700 sm:w-auto sm:py-1"
+            >
+              <Icon name="clipboard" size={12} />
+              Term check-in
+            </Link>
+            {hasAnyStudents && (
+              <div className="relative w-full sm:w-44">
+                <Icon
+                  name="search"
+                  size={13}
+                  className="pointer-events-none absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400"
+                />
+                <Input
+                  value={query}
+                  onChange={(e) => setQuery(e.target.value)}
+                  placeholder="Search students…"
+                  className="w-full pl-8"
+                  aria-label="Search students"
+                />
+              </div>
+            )}
+          </PageToolbarGroup>
+          <PageToolbarGroup>
+            <RefreshButton onRefresh={refreshAll} isRefreshing={isRefreshing} label="Refresh students" />
+            {actions}
+          </PageToolbarGroup>
+        </PageToolbar>
       </div>
 
       {summaryLoading ? (
@@ -183,21 +185,18 @@ export function StudentRosterSection({
           }
         />
       ) : scope ? (
-        <div className="flex flex-col gap-4 lg:flex-row">
-          <div className="w-full shrink-0 lg:w-48">
-            <Card className="p-1.5 lg:sticky lg:top-2">
-              <ClassStreamNavigator
-                summary={summary}
-                scope={scope}
-                teacherMode={isTeacher}
-                onChange={(next) => {
-                  setScope(next);
-                  setBulkSelected([]);
-                }}
-              />
-            </Card>
-          </div>
-          <div className="min-w-0 flex-1">
+        <div className="flex flex-col gap-4">
+          <Card className="p-3 lg:p-1.5 lg:sticky lg:top-2">
+            <ClassStreamPicker
+              summary={summary}
+              scope={scope}
+              teacherMode={isTeacher}
+              onChange={(next) => {
+                setScope(next);
+                setBulkSelected([]);
+              }}
+            />
+          </Card>
             {scope.kind === "overview" && !isTeacher ? (
               <StudentOverviewCards
                 summary={summary}
@@ -254,7 +253,6 @@ export function StudentRosterSection({
                 </Card>
               </div>
             )}
-          </div>
         </div>
       ) : (
         <EmptyState

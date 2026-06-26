@@ -223,13 +223,11 @@ export default function SettingsProfilePage() {
           </CardBody>
         </Card>
 
-        <div className="flex items-center justify-end gap-3">
-          <span
-            className={cnDirty(dirty)}
-          >
+        <div className="flex flex-col-reverse gap-3 sm:flex-row sm:items-center sm:justify-end">
+          <span className={cnDirty(dirty)}>
             {dirty ? "Unsaved changes" : "All changes saved"}
           </span>
-          <Button loading={savingProfile} disabled={!dirty} onClick={saveProfile}>
+          <Button className="w-full sm:w-auto" loading={savingProfile} disabled={!dirty} onClick={saveProfile}>
             Save changes
           </Button>
         </div>
@@ -237,7 +235,7 @@ export default function SettingsProfilePage() {
 
       {/* Live identity preview */}
       <div className="lg:col-span-1">
-        <Card className="sticky top-2 overflow-hidden">
+        <Card className="lg:sticky lg:top-2 overflow-hidden">
           <div className="relative bg-brand-700 px-4 py-5 text-white">
             <div
               aria-hidden

@@ -1,12 +1,17 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import { ImportReadinessBanner, useImportReadiness } from "@/components/domain/ImportReadinessBanner";
 import { SettingsHint } from "@/components/layout/settingsUi";
 import { Button } from "@/components/ui/Button";
 import { Card, CardBody, CardHeader } from "@/components/ui/Card";
 import { FormField } from "@/components/ui/FormField";
 import { Select } from "@/components/ui/Select";
 import { parseError } from "@/lib/apiError";
+import {
+  toastStudentImportCommit,
+  toastStudentImportValidate,
+} from "@/lib/importToasts";
 import type { StudentImportResponse } from "@/lib/types";
 import { useImportStudentsMutation } from "@/store/api/skulpulseApi";
 import { useToast } from "@/components/ui/Toast";
@@ -32,6 +37,7 @@ interface StudentImportSectionProps {
 
 export function StudentImportSection({ onBack }: StudentImportSectionProps) {
   const { toast } = useToast();
+  const { canProceed } = useImportReadiness("students");
   const [step, setStep] = useState<Step>("Upload");
   const [fileName, setFileName] = useState("");
   const [headers, setHeaders] = useState<string[]>([]);
@@ -48,6 +54,10 @@ export function StudentImportSection({ onBack }: StudentImportSectionProps) {
   );
 
   async function handleFile(file: File) {
+    if (!canProceed) {
+      toast("Set up classes under Academics before importing pupils.", "error");
+      return;
+    }
     try {
       const parsed = await parseSpreadsheetFile(file);
       if (!parsed.rows.length) {
@@ -91,12 +101,8 @@ export function StudentImportSection({ onBack }: StudentImportSectionProps) {
         dry_run: true,
       }).unwrap();
       setValidation(res);
-      if (res.failed > 0) {
-        toast(`${res.failed} row(s) need attention before import.`, "error");
-      } else {
-        toast(`${res.valid} row(s) ready to import.`, "success");
-        setStep("Import");
-      }
+      if (!toastStudentImportValidate(toast, res)) return;
+      setStep("Import");
     } catch (err) {
       const p = parseError(err);
       toast(p.message, "error", p.requestId);
@@ -111,7 +117,7 @@ export function StudentImportSection({ onBack }: StudentImportSectionProps) {
         dry_run: false,
       }).unwrap();
       setImportResult(res);
-      toast(`${res.created} student(s) enrolled.`, "success");
+      toastStudentImportCommit(toast, res);
     } catch (err) {
       const p = parseError(err);
       toast(p.message, "error", p.requestId);
@@ -156,6 +162,7 @@ export function StudentImportSection({ onBack }: StudentImportSectionProps) {
         }
       />
       <CardBody className="space-y-4 py-3">
+        <ImportReadinessBanner flow="students" />
         <div className="flex flex-wrap gap-x-3 gap-y-1">
           {STEPS.map((label, i) => {
             const active = STEPS.indexOf(step) === i;
@@ -182,7 +189,7 @@ export function StudentImportSection({ onBack }: StudentImportSectionProps) {
               <Button size="sm" variant="secondary" onClick={downloadStudentTemplate}>
                 Download template
               </Button>
-              <label className="cursor-pointer">
+              <label className={canProceed ? "cursor-pointer" : "cursor-not-allowed opacity-50"}>
                 <span className="inline-flex h-7 items-center rounded-md border border-slate-200 px-2.5 text-[11px] font-medium text-slate-600 hover:bg-slate-50">
                   Choose file
                 </span>
@@ -190,6 +197,7 @@ export function StudentImportSection({ onBack }: StudentImportSectionProps) {
                   type="file"
                   accept=".csv,.xlsx,.xls,text/csv"
                   className="hidden"
+                  disabled={!canProceed}
                   onChange={(e) => {
                     const file = e.target.files?.[0];
                     if (file) void handleFile(file);

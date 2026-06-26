@@ -25,6 +25,8 @@ docker-compose.yml
 
 **Full walkthrough:** [`docs/RUN-ON-DOCKER.md`](docs/RUN-ON-DOCKER.md) — prerequisites, sign-in, onboard a school, troubleshooting.
 
+**User guide (operations):** [`docs/USER-GUIDE.md`](docs/USER-GUIDE.md) — section-by-section flows, import templates, and go-live checklist.
+
 Brings up Postgres + PgBouncer + Redis + API + Web. Migrations and seed run automatically on API start.
 
 ```powershell

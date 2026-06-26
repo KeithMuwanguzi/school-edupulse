@@ -25,6 +25,12 @@ class TokenResponse(BaseModel):
     refresh_token: str
     token_type: str = "bearer"
     expires_in: int  # access token lifetime in seconds
+    must_change_password: bool = False
+
+
+class ChangePasswordRequest(BaseModel):
+    current_password: str = Field(min_length=1)
+    new_password: str = Field(min_length=8, max_length=128)
 
 
 class TenantSummary(BaseModel):
@@ -43,3 +49,4 @@ class MeResponse(BaseModel):
     login_id: str | None = None
     tenant: TenantSummary | None = None
     modules: list[str] = []
+    must_change_password: bool = False

@@ -36,13 +36,48 @@ async def test_config_grouped_by_cycle_sections(client, admin_headers):
     resp = await client.get("/api/v1/tenant/grading/config", headers=headers)
     assert resp.status_code == 200, resp.text
     body = resp.json()
-    assert len(body["sections"]) == 3
+    assert len(body["sections"]) == 4
+    ecd = next(s for s in body["sections"] if s["cycle"] == "ecd")
     p1 = next(s for s in body["sections"] if s["cycle"] == "cycle_1")
     p7 = next(s for s in body["sections"] if s["cycle"] == "cycle_3")
+    assert ecd["subjects"] == []
     assert len(p1["subjects"]) == 1
     assert len(p7["subjects"]) == 1
     assert p1["scales"] == []
+    assert len(p1["extendable_subjects"]) == 1
+    assert p1["extendable_subjects"][0]["subject_code"] == "ENG"
     assert body["aggregate_divisions"] == []
+
+
+async def test_extendable_subjects_in_grading_config(client, admin_headers):
+    headers = await _headers(client, admin_headers, "GRD6")
+    await _create_subject(client, headers, "LIT", "cycle_1")
+    await _create_subject(client, headers, "MATH", "cycle_2")
+
+    resp = await client.get("/api/v1/tenant/grading/config", headers=headers)
+    assert resp.status_code == 200, resp.text
+    p1 = next(s for s in resp.json()["sections"] if s["cycle"] == "cycle_1")
+    assert [s["subject_code"] for s in p1["subjects"]] == ["LIT"]
+    assert [s["subject_code"] for s in p1["extendable_subjects"]] == ["MATH"]
+
+
+async def test_multi_cycle_subject_in_grading_section(client, admin_headers):
+    headers = await _headers(client, admin_headers, "GRD7")
+    eng = await client.post(
+        "/api/v1/tenant/subjects",
+        json={
+            "code": "ENG",
+            "name": "English",
+            "ncdc_cycles": ["cycle_1", "cycle_2", "cycle_3"],
+        },
+        headers=headers,
+    )
+    assert eng.status_code in (200, 201), eng.text
+
+    resp = await client.get("/api/v1/tenant/grading/config", headers=headers)
+    p1 = next(s for s in resp.json()["sections"] if s["cycle"] == "cycle_1")
+    codes = [s["subject_code"] for s in p1["subjects"]]
+    assert "ENG" in codes
 
 
 async def test_create_scale_and_ranges(client, admin_headers):
@@ -64,8 +99,7 @@ async def test_create_scale_and_ranges(client, admin_headers):
             "aggregate_weight": 1,
             "min_mark": 90,
             "max_mark": 100,
-            "class_teacher_comment": "Excellent effort this term.",
-            "head_teacher_comment": "A role model to peers.",
+            "comment": "Excellent",
         },
         headers=headers,
     )
@@ -76,8 +110,7 @@ async def test_create_scale_and_ranges(client, admin_headers):
     assert len(section["scales"]) == 1
     assert len(section["scales"][0]["ranges"]) == 1
     band = section["scales"][0]["ranges"][0]
-    assert band["class_teacher_comment"] == "Excellent effort this term."
-    assert band["head_teacher_comment"] == "A role model to peers."
+    assert band["comment"] == "Excellent"
 
 
 async def test_assign_subject_to_scale(client, admin_headers):
@@ -92,7 +125,7 @@ async def test_assign_subject_to_scale(client, admin_headers):
 
     assigned = await client.patch(
         f"/api/v1/tenant/grading/subjects/{subject_id}/scale",
-        json={"grading_scale_id": scale_id},
+        json={"grading_scale_id": scale_id, "ncdc_cycle": "cycle_1"},
         headers=headers,
     )
     assert assigned.status_code == 200, assigned.text
@@ -111,10 +144,49 @@ async def test_rejects_wrong_cycle_scale_assignment(client, admin_headers):
 
     resp = await client.patch(
         f"/api/v1/tenant/grading/subjects/{subject_id}/scale",
-        json={"grading_scale_id": scale_id},
+        json={"grading_scale_id": scale_id, "ncdc_cycle": "cycle_3"},
         headers=headers,
     )
     assert resp.status_code == 422
+
+
+async def test_scale_assignment_isolated_per_cycle(client, admin_headers):
+    headers = await _headers(client, admin_headers, "GRD8")
+    eng = await client.post(
+        "/api/v1/tenant/subjects",
+        json={
+            "code": "ENG",
+            "name": "English",
+            "ncdc_cycles": ["cycle_2", "cycle_3"],
+        },
+        headers=headers,
+    )
+    assert eng.status_code in (200, 201), eng.text
+    subject_id = eng.json()["id"]
+
+    p4_scale = await client.post(
+        "/api/v1/tenant/grading/scales",
+        json={"name": "P4 Standard", "ncdc_cycle": "cycle_2"},
+        headers=headers,
+    )
+    assert p4_scale.status_code == 201, p4_scale.text
+    scale_id = p4_scale.json()["id"]
+
+    assigned = await client.patch(
+        f"/api/v1/tenant/grading/subjects/{subject_id}/scale",
+        json={"grading_scale_id": scale_id, "ncdc_cycle": "cycle_2"},
+        headers=headers,
+    )
+    assert assigned.status_code == 200, assigned.text
+
+    config = await client.get("/api/v1/tenant/grading/config", headers=headers)
+    assert config.status_code == 200, config.text
+    p4 = next(s for s in config.json()["sections"] if s["cycle"] == "cycle_2")
+    p7 = next(s for s in config.json()["sections"] if s["cycle"] == "cycle_3")
+    eng_p4 = next(s for s in p4["subjects"] if s["subject_code"] == "ENG")
+    eng_p7 = next(s for s in p7["subjects"] if s["subject_code"] == "ENG")
+    assert eng_p4["grading_scale_id"] == scale_id
+    assert eng_p7["grading_scale_id"] is None
 
 
 async def test_teacher_cannot_access_grading_config(client, admin_headers):

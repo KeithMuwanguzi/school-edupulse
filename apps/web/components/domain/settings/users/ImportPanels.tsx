@@ -1,11 +1,13 @@
 "use client";
 
 import { useState } from "react";
+import { ImportReadinessBanner, useImportReadiness } from "@/components/domain/ImportReadinessBanner";
 import { Button } from "@/components/ui/Button";
 import { FormField } from "@/components/ui/FormField";
 import { Input } from "@/components/ui/Input";
 import { Label } from "@/components/ui/Label";
 import { parseError } from "@/lib/apiError";
+import { toastGuardianImport, toastStaffImport } from "@/lib/importToasts";
 import type { ImportUsersResponse } from "@/lib/types";
 import { useToast } from "@/components/ui/Toast";
 import { useImportGuardiansMutation, useImportTeachersMutation } from "@/store/api/skulpulseApi";
@@ -104,6 +106,7 @@ interface ImportPanelProps {
 
 export function ImportTeachersPanel({ schoolCode }: ImportPanelProps) {
   const { toast } = useToast();
+  const { canProceed } = useImportReadiness("staff");
   const [csv, setCsv] = useState(TEACHER_TEMPLATE);
   const [generatePasswords, setGeneratePasswords] = useState(true);
   const [useSharedPassword, setUseSharedPassword] = useState(false);
@@ -124,7 +127,7 @@ export function ImportTeachersPanel({ schoolCode }: ImportPanelProps) {
         default_password: useSharedPassword ? sharedPassword : undefined,
       }).unwrap();
       setResult(res);
-      toast(`${res.created} staff account(s) created.`, "success");
+      toastStaffImport(toast, res);
     } catch (err) {
       const p = parseError(err);
       toast(p.message, "error", p.requestId);
@@ -133,6 +136,7 @@ export function ImportTeachersPanel({ schoolCode }: ImportPanelProps) {
 
   return (
     <div className="space-y-2.5">
+      <ImportReadinessBanner flow="staff" />
       <ImportOptions
         useSharedPassword={useSharedPassword}
         setUseSharedPassword={setUseSharedPassword}
@@ -174,6 +178,7 @@ export function ImportTeachersPanel({ schoolCode }: ImportPanelProps) {
 
 export function ImportGuardiansPanel({ schoolCode }: ImportPanelProps) {
   const { toast } = useToast();
+  const { canProceed } = useImportReadiness("guardians");
   const [csv, setCsv] = useState(GUARDIAN_TEMPLATE);
   const [generatePasswords, setGeneratePasswords] = useState(true);
   const [useSharedPassword, setUseSharedPassword] = useState(false);
@@ -182,6 +187,10 @@ export function ImportGuardiansPanel({ schoolCode }: ImportPanelProps) {
   const [importGuardians, { isLoading }] = useImportGuardiansMutation();
 
   async function runImport() {
+    if (!canProceed) {
+      toast("Enroll pupils under Students before importing guardian accounts.", "error");
+      return;
+    }
     const rows = parseGuardianRows(csv).filter((r) => r.student_number && r.guardian_name);
     if (!rows.length) {
       toast("Add at least one row with student_number and guardian_name.", "error");
@@ -194,7 +203,7 @@ export function ImportGuardiansPanel({ schoolCode }: ImportPanelProps) {
         default_password: useSharedPassword ? sharedPassword : undefined,
       }).unwrap();
       setResult(res);
-      toast(`${res.created} guardian account(s) created.`, "success");
+      toastGuardianImport(toast, res);
     } catch (err) {
       const p = parseError(err);
       toast(p.message, "error", p.requestId);
@@ -203,6 +212,7 @@ export function ImportGuardiansPanel({ schoolCode }: ImportPanelProps) {
 
   return (
     <div className="space-y-2.5">
+      <ImportReadinessBanner flow="guardians" />
       <ImportOptions
         useSharedPassword={useSharedPassword}
         setUseSharedPassword={setUseSharedPassword}
@@ -220,7 +230,12 @@ export function ImportGuardiansPanel({ schoolCode }: ImportPanelProps) {
         />
       </FormField>
       <div className="flex flex-wrap items-center gap-2">
-        <Button size="sm" loading={isLoading} onClick={() => void runImport()}>
+        <Button
+          size="sm"
+          loading={isLoading}
+          disabled={!canProceed}
+          onClick={() => void runImport()}
+        >
           Import
         </Button>
         <Label className="cursor-pointer">

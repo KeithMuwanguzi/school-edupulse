@@ -7,6 +7,7 @@ export interface TokenResponse {
   refresh_token: string;
   token_type: string;
   expires_in: number;
+  must_change_password?: boolean;
 }
 
 export interface TenantSummary {
@@ -25,6 +26,7 @@ export interface Me {
   login_id?: string | null;
   tenant?: TenantSummary | null;
   modules: string[];
+  must_change_password?: boolean;
 }
 
 export interface ModuleCatalogItem {
@@ -136,7 +138,9 @@ export interface RoleOption {
 
 export interface PasswordResetStubResponse {
   message: string;
-  temporary_password: string;
+  temporary_password?: string | null;
+  email_sent?: boolean;
+  email_recipient?: string | null;
 }
 
 export interface ImportRowResult {
@@ -179,6 +183,47 @@ export interface ErrorLogItem {
   created_at: string;
 }
 
+export interface AuditLogItem {
+  id: string;
+  actor_type: string;
+  actor_id?: string | null;
+  tenant_id?: string | null;
+  action: string;
+  resource_type?: string | null;
+  resource_id?: string | null;
+  request_id?: string | null;
+  metadata?: Record<string, unknown> | null;
+  ip_address?: string | null;
+  created_at: string;
+}
+
+export interface AuditLogFileItem {
+  kind: "global" | "admin" | string;
+  filename: string;
+  relative_path: string;
+  size_bytes: number;
+  modified_at: string;
+  admin_id?: string | null;
+}
+
+export interface PlatformAdminOut {
+  id: string;
+  email: string;
+  name: string;
+  is_active: boolean;
+  must_change_password: boolean;
+  last_login_at?: string | null;
+  created_at: string;
+}
+
+export interface PlatformAdminCreateResponse {
+  admin: PlatformAdminOut;
+  message: string;
+  temporary_password?: string | null;
+  email_sent?: boolean;
+  email_recipient?: string | null;
+}
+
 export interface AcademicYearOut {
   id: string;
   label: string;
@@ -206,7 +251,7 @@ export interface AcademicContext {
   terms?: TermOut[];
 }
 
-export type NcdcCycle = "cycle_1" | "cycle_2" | "cycle_3";
+export type NcdcCycle = "ecd" | "cycle_1" | "cycle_2" | "cycle_3";
 
 export interface SubjectOut {
   id: string;
@@ -815,8 +860,7 @@ export interface GradeRangeOut {
   aggregate_weight: number;
   min_mark: number;
   max_mark: number;
-  class_teacher_comment?: string | null;
-  head_teacher_comment?: string | null;
+  comment?: string | null;
   sort_order: number;
   is_active: boolean;
 }
@@ -838,6 +882,7 @@ export interface SubjectGradingOut {
   ncdc_cycles: string[];
   grading_scale_id?: string | null;
   grading_scale_name?: string | null;
+  in_section?: boolean;
 }
 
 export interface CycleGradingSectionOut {
@@ -845,6 +890,7 @@ export interface CycleGradingSectionOut {
   cycle_label: string;
   scales: GradingScaleOut[];
   subjects: SubjectGradingOut[];
+  extendable_subjects?: SubjectGradingOut[];
 }
 
 export interface AggregateDivisionOut {
@@ -1053,6 +1099,9 @@ export interface FeeStructureOut {
   activated_at?: string | null;
   line_count: number;
   total_ugx: number;
+  catalog_total_ugx: number;
+  expected_invoiced_ugx: number;
+  level_amounts_ugx: Record<string, number>;
   lines: FeeStructureLineOut[];
 }
 
@@ -1105,12 +1154,15 @@ export interface FinanceSummaryOut {
   term_label: string;
   active_structure_id?: string | null;
   active_structure_name?: string | null;
+  class_id?: string | null;
+  class_label?: string | null;
   registered_count: number;
   invoiced_count: number;
   not_invoiced_count: number;
   total_invoiced_ugx: number;
   total_collected_ugx: number;
   total_outstanding_ugx: number;
+  expected_invoiced_ugx?: number | null;
   counts: Record<string, number>;
 }
 

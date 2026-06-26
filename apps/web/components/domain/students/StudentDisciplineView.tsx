@@ -7,6 +7,7 @@ import { EmptyState } from "@/components/ui/EmptyState";
 import { ErrorBanner } from "@/components/ui/ErrorBanner";
 import { Icon } from "@/components/ui/Icon";
 import { Select } from "@/components/ui/Select";
+import { PageToolbar, PageToolbarGroup } from "@/components/ui/PageToolbar";
 import { RefreshButton } from "@/components/ui/RefreshButton";
 import { PageLoader } from "@/components/ui/Spinner";
 import { SettingsStatRow } from "@/components/layout/settingsUi";
@@ -44,28 +45,28 @@ export function StudentDisciplineView() {
 
   return (
     <div className="space-y-4">
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+      <PageToolbar className="sm:justify-between">
         <SettingsStatRow
           items={[
             { label: "Incidents", value: records.length },
             { label: "Open", value: openCount },
           ]}
         />
-        <div className="flex items-center gap-2">
+        <PageToolbarGroup>
           <RefreshButton onRefresh={refetch} isRefreshing={isFetching} label="Refresh incidents" />
           <Select
-          value={status}
-          onChange={(e) => setStatus(e.target.value)}
-          className="h-7 w-36 text-[12px]"
-          aria-label="Filter by status"
-        >
-          <option value="">All statuses</option>
-          {DISCIPLINE_STATUS_OPTIONS.map((o) => (
-            <option key={o.value} value={o.value}>{o.label}</option>
-          ))}
-        </Select>
-        </div>
-      </div>
+            value={status}
+            onChange={(e) => setStatus(e.target.value)}
+            className="h-9 w-full text-[12px] sm:h-7 sm:w-36"
+            aria-label="Filter by status"
+          >
+            <option value="">All statuses</option>
+            {DISCIPLINE_STATUS_OPTIONS.map((o) => (
+              <option key={o.value} value={o.value}>{o.label}</option>
+            ))}
+          </Select>
+        </PageToolbarGroup>
+      </PageToolbar>
 
       {isLoading ? (
         <Card className="p-8 text-center text-[12px] text-slate-400">Loading incidents…</Card>

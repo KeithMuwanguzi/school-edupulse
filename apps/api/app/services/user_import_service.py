@@ -38,7 +38,7 @@ async def _login_taken(session: AsyncSession, tenant_id: UUID, login_id: str) ->
     return existing is not None
 
 
-async def _get_or_create_student(
+async def _get_student(
     session: AsyncSession,
     tenant_id: UUID,
     row: GuardianImportRow,
@@ -54,26 +54,11 @@ async def _get_or_create_student(
             Student.deleted_at.is_(None),
         )
     )
-    if student:
-        return student, None
-
-    first = (row.student_first_name or row.guardian_name.split()[0]).strip()
-    last = (
-        row.student_last_name
-        or (" ".join(row.guardian_name.split()[1:]) if len(row.guardian_name.split()) > 1 else "Student")
-    ).strip()
-    if len(first) < 1 or len(last) < 1:
-        return None, "Provide student_first_name and student_last_name when learner is not enrolled yet"
-
-    student = Student(
-        tenant_id=tenant_id,
-        student_number=number,
-        first_name=first[:120],
-        last_name=last[:120],
-        is_active=True,
-    )
-    session.add(student)
-    await session.flush()
+    if student is None:
+        return None, (
+            f"Student #{number} is not enrolled — import pupils under Students first, "
+            "then link guardian accounts."
+        )
     return student, None
 
 
@@ -126,6 +111,7 @@ async def import_teachers(
                 password_hash=hash_password(password),
                 name=name,
                 status=UserStatus.active,
+                must_change_password=True,
             )
             session.add(user)
             await session.flush()
@@ -171,7 +157,7 @@ async def import_guardians(
         ident = number
 
         try:
-            student, err = await _get_or_create_student(session, tenant_id, row)
+            student, err = await _get_student(session, tenant_id, row)
             if err:
                 raise ValueError(err)
             assert student is not None
@@ -201,6 +187,7 @@ async def import_guardians(
                 password_hash=hash_password(password),
                 name=row.guardian_name.strip(),
                 status=UserStatus.active,
+                must_change_password=True,
             )
             session.add(user)
             await session.flush()

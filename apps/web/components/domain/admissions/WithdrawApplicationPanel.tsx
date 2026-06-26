@@ -68,14 +68,15 @@ export function WithdrawApplicationPanel({
           </div>
         )}
       </div>
-      <div className="mt-2.5 flex gap-2">
-        <Button size="sm" variant="ghost" onClick={onCancel} disabled={loading}>
+      <div className="mt-2.5 flex flex-col-reverse gap-2 sm:flex-row sm:justify-start">
+        <Button size="sm" variant="ghost" onClick={onCancel} disabled={loading} className="w-full sm:w-auto">
           Cancel
         </Button>
         <Button
           size="sm"
           variant="secondary"
           loading={loading}
+          className="w-full sm:w-auto"
           onClick={() =>
             onConfirm({
               withdrawal_reason: reason,

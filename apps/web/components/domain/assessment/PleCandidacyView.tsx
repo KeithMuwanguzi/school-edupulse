@@ -9,7 +9,7 @@ import { Card, CardBody, CardHeader } from "@/components/ui/Card";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { ErrorBanner } from "@/components/ui/ErrorBanner";
 import { Input } from "@/components/ui/Input";
-import { PageHeader } from "@/components/ui/PageHeader";
+import { PageToolbar } from "@/components/ui/PageToolbar";
 import { PageLoader } from "@/components/ui/Spinner";
 import { Table, TBody, TD, TH, THead, TR } from "@/components/ui/Table";
 import { useToast } from "@/components/ui/Toast";
@@ -56,6 +56,18 @@ function ReadinessCells({ readiness }: { readiness: PleCandidateOut["readiness"]
       <TD className="tabular-nums">{readiness.aggregate ?? "—"}</TD>
       <TD>{readiness.division_label ?? "—"}</TD>
     </>
+  );
+}
+
+function ReadinessInline({ readiness }: { readiness: PleCandidateOut["readiness"] }) {
+  if (!readiness.marks_available) {
+    return <p className="text-[11px] text-slate-400">No assessment data yet</p>;
+  }
+  return (
+    <p className="text-[11px] text-slate-500">
+      Avg {readiness.average_score ?? "—"} · Agg {readiness.aggregate ?? "—"} · Div{" "}
+      {readiness.division_label ?? "—"}
+    </p>
   );
 }
 
@@ -125,16 +137,19 @@ export function PleCandidacyView() {
     }
   }
 
+  function toggleEligible(studentId: string, checked: boolean) {
+    setSelectedEligible((prev) => {
+      const next = new Set(prev);
+      if (checked) next.add(studentId);
+      else next.delete(studentId);
+      return next;
+    });
+  }
+
   return (
     <div className="space-y-5">
-      <PageHeader
-        eyebrow="Assessment"
-        title="P7 PLE candidacy"
-        description="Nominate registered P7 learners, track UNEB registration, and monitor readiness from current-term assessment results."
-      />
-
       {summary ? (
-        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4 xl:grid-cols-7">
+        <div className="grid gap-3 grid-cols-2 lg:grid-cols-4 xl:grid-cols-7">
           <SummaryStat label="P7 registered" value={summary.total_p7_registered} />
           <SummaryStat label="Not nominated" value={summary.not_nominated} />
           <SummaryStat label="Nominated" value={summary.nominated} />
@@ -153,44 +168,23 @@ export function PleCandidacyView() {
           <CardHeader
             title="Eligible P7 learners"
             description="Fully registered P7 pupils not yet nominated for this academic year."
-            action={
+          />
+          <CardBody className="space-y-3 py-3">
+            <PageToolbar>
               <Button
                 size="sm"
+                className="w-full sm:w-auto"
                 onClick={handleNominate}
                 disabled={!selectedEligible.size || nominating}
               >
                 Nominate selected ({selectedEligible.size})
               </Button>
-            }
-          />
-          <CardBody className="overflow-x-auto py-0">
+            </PageToolbar>
             {eligibleLoading ? (
               <PageLoader />
             ) : (
-              <Table>
-                <THead>
-                  <TR>
-                    <TH className="w-10">
-                      <input
-                        type="checkbox"
-                        checked={allEligibleSelected}
-                        onChange={(e) => {
-                          if (e.target.checked) {
-                            setSelectedEligible(new Set(eligible.map((s) => s.student_id)));
-                          } else {
-                            setSelectedEligible(new Set());
-                          }
-                        }}
-                      />
-                    </TH>
-                    <TH>Pupil</TH>
-                    <TH>Class</TH>
-                    <TH>Avg %</TH>
-                    <TH>Aggregate</TH>
-                    <TH>Division</TH>
-                  </TR>
-                </THead>
-                <TBody>
+              <>
+                <div className="space-y-2 md:hidden">
                   {eligible.map((row) => {
                     const name = formatStudentFullName({
                       last_name: row.last_name,
@@ -198,46 +192,111 @@ export function PleCandidacyView() {
                       first_name: row.first_name,
                     });
                     return (
-                      <TR key={row.student_id}>
-                        <TD>
-                          <input
-                            type="checkbox"
-                            checked={selectedEligible.has(row.student_id)}
-                            onChange={(e) => {
-                              const next = new Set(selectedEligible);
-                              if (e.target.checked) next.add(row.student_id);
-                              else next.delete(row.student_id);
-                              setSelectedEligible(next);
-                            }}
-                          />
-                        </TD>
-                        <TD>
+                      <label
+                        key={row.student_id}
+                        className="flex cursor-pointer gap-3 rounded-lg border border-slate-200 bg-white p-3"
+                      >
+                        <input
+                          type="checkbox"
+                          className="mt-1"
+                          checked={selectedEligible.has(row.student_id)}
+                          onChange={(e) => toggleEligible(row.student_id, e.target.checked)}
+                        />
+                        <div className="min-w-0 flex-1">
                           <Link
                             href={`/app/m/students/${row.student_id}`}
                             className="font-medium text-brand-700 hover:underline"
+                            onClick={(e) => e.stopPropagation()}
                           >
                             {name}
                           </Link>
                           <p className="font-mono text-[10px] text-slate-400">{row.student_number}</p>
-                        </TD>
-                        <TD>{[row.class_label, row.stream_name].filter(Boolean).join(" · ") || "—"}</TD>
-                        <ReadinessCells readiness={row.readiness} />
-                      </TR>
+                          <p className="mt-0.5 text-[11px] text-slate-500">
+                            {[row.class_label, row.stream_name].filter(Boolean).join(" · ") || "—"}
+                          </p>
+                          <ReadinessInline readiness={row.readiness} />
+                        </div>
+                      </label>
                     );
                   })}
-                </TBody>
-              </Table>
+                </div>
+                <div className="hidden overflow-x-auto py-0 md:block">
+                  <Table>
+                    <THead>
+                      <TR>
+                        <TH className="w-10">
+                          <input
+                            type="checkbox"
+                            checked={allEligibleSelected}
+                            onChange={(e) => {
+                              if (e.target.checked) {
+                                setSelectedEligible(new Set(eligible.map((s) => s.student_id)));
+                              } else {
+                                setSelectedEligible(new Set());
+                              }
+                            }}
+                          />
+                        </TH>
+                        <TH>Pupil</TH>
+                        <TH>Class</TH>
+                        <TH>Avg %</TH>
+                        <TH>Aggregate</TH>
+                        <TH>Division</TH>
+                      </TR>
+                    </THead>
+                    <TBody>
+                      {eligible.map((row) => {
+                        const name = formatStudentFullName({
+                          last_name: row.last_name,
+                          middle_name: row.middle_name,
+                          first_name: row.first_name,
+                        });
+                        return (
+                          <TR key={row.student_id}>
+                            <TD>
+                              <input
+                                type="checkbox"
+                                checked={selectedEligible.has(row.student_id)}
+                                onChange={(e) => toggleEligible(row.student_id, e.target.checked)}
+                              />
+                            </TD>
+                            <TD>
+                              <Link
+                                href={`/app/m/students/${row.student_id}`}
+                                className="font-medium text-brand-700 hover:underline"
+                              >
+                                {name}
+                              </Link>
+                              <p className="font-mono text-[10px] text-slate-400">{row.student_number}</p>
+                            </TD>
+                            <TD>{[row.class_label, row.stream_name].filter(Boolean).join(" · ") || "—"}</TD>
+                            <ReadinessCells readiness={row.readiness} />
+                          </TR>
+                        );
+                      })}
+                    </TBody>
+                  </Table>
+                </div>
+              </>
             )}
           </CardBody>
         </Card>
       ) : null}
+
+      {isAdmin && selectedEligible.size > 0 && (
+        <div className="fixed inset-x-0 bottom-0 z-20 border-t border-slate-200 bg-white/95 p-3 shadow-lg backdrop-blur md:hidden">
+          <Button size="sm" className="w-full" loading={nominating} onClick={handleNominate}>
+            Nominate {selectedEligible.size} learner{selectedEligible.size === 1 ? "" : "s"}
+          </Button>
+        </div>
+      )}
 
       <Card>
         <CardHeader
           title="PLE candidates"
           description="Track nomination, UNEB registration numbers, and readiness for the November exam."
         />
-        <CardBody className="overflow-x-auto py-0">
+        <CardBody className="py-3">
           {candidatesLoading ? (
             <PageLoader />
           ) : candidatesError ? (
@@ -252,19 +311,8 @@ export function PleCandidacyView() {
               }
             />
           ) : (
-            <Table>
-              <THead>
-                <TR>
-                  <TH>Pupil</TH>
-                  <TH>Status</TH>
-                  <TH>UNEB no.</TH>
-                  <TH>Avg %</TH>
-                  <TH>Aggregate</TH>
-                  <TH>Division</TH>
-                  {isAdmin ? <TH>Actions</TH> : null}
-                </TR>
-              </THead>
-              <TBody>
+            <>
+              <div className="space-y-2 md:hidden">
                 {candidates.map((row) => {
                   const name = formatStudentFullName({
                     last_name: row.student.last_name,
@@ -273,91 +321,196 @@ export function PleCandidacyView() {
                   });
                   const editing = editingId === row.id;
                   return (
-                    <TR key={row.id}>
-                      <TD>
-                        <Link
-                          href={`/app/m/students/${row.student_id}`}
-                          className="font-medium text-brand-700 hover:underline"
-                        >
-                          {name}
-                        </Link>
-                        <p className="text-[10px] text-slate-500">
-                          {[row.student.class_label, row.student.stream_name]
-                            .filter(Boolean)
-                            .join(" · ")}
-                        </p>
-                      </TD>
-                      <TD>
+                    <div key={row.id} className="rounded-lg border border-slate-200 bg-white p-3">
+                      <div className="flex items-start justify-between gap-2">
+                        <div>
+                          <Link
+                            href={`/app/m/students/${row.student_id}`}
+                            className="font-medium text-brand-700 hover:underline"
+                          >
+                            {name}
+                          </Link>
+                          <p className="text-[10px] text-slate-500">
+                            {[row.student.class_label, row.student.stream_name].filter(Boolean).join(" · ")}
+                          </p>
+                        </div>
                         <Badge tone={STATUS_TONE[row.status] ?? "neutral"}>{row.status}</Badge>
-                      </TD>
-                      <TD>
+                      </div>
+                      <div className="mt-2">
                         {editing ? (
                           <Input
                             value={candidateNumber}
                             onChange={(e) => setCandidateNumber(e.target.value)}
                             placeholder="UNEB index"
-                            className="h-7 text-[12px]"
+                            className="h-9 w-full text-[12px]"
                           />
                         ) : (
-                          row.candidate_number ?? "—"
+                          <p className="text-[11px] text-slate-500">
+                            UNEB: {row.candidate_number ?? "—"}
+                          </p>
                         )}
-                      </TD>
-                      <ReadinessCells readiness={row.readiness} />
-                      {isAdmin ? (
-                        <TD>
-                          <div className="flex flex-wrap gap-1">
-                            {row.status === "nominated" ? (
-                              editing ? (
-                                <>
-                                  <Button
-                                    size="sm"
-                                    onClick={() => handleRegister(row)}
-                                    disabled={updating}
-                                  >
-                                    Save
-                                  </Button>
-                                  <Button
-                                    size="sm"
-                                    variant="secondary"
-                                    onClick={() => {
-                                      setEditingId(null);
-                                      setCandidateNumber("");
-                                    }}
-                                  >
-                                    Cancel
-                                  </Button>
-                                </>
-                              ) : (
+                        <ReadinessInline readiness={row.readiness} />
+                      </div>
+                      {isAdmin && (
+                        <div className="mt-3 flex flex-col gap-1.5">
+                          {row.status === "nominated" ? (
+                            editing ? (
+                              <>
+                                <Button size="sm" className="w-full" onClick={() => handleRegister(row)} disabled={updating}>
+                                  Save registration
+                                </Button>
                                 <Button
                                   size="sm"
                                   variant="secondary"
+                                  className="w-full"
                                   onClick={() => {
-                                    setEditingId(row.id);
-                                    setCandidateNumber(row.candidate_number ?? "");
+                                    setEditingId(null);
+                                    setCandidateNumber("");
                                   }}
                                 >
-                                  Register
+                                  Cancel
                                 </Button>
-                              )
-                            ) : null}
-                            {row.status === "registered" ? (
+                              </>
+                            ) : (
                               <Button
                                 size="sm"
                                 variant="secondary"
-                                onClick={() => handleWithdraw(row.id)}
-                                disabled={updating}
+                                className="w-full"
+                                onClick={() => {
+                                  setEditingId(row.id);
+                                  setCandidateNumber(row.candidate_number ?? "");
+                                }}
                               >
-                                Withdraw
+                                Register
                               </Button>
-                            ) : null}
-                          </div>
-                        </TD>
-                      ) : null}
-                    </TR>
+                            )
+                          ) : null}
+                          {row.status === "registered" ? (
+                            <Button
+                              size="sm"
+                              variant="secondary"
+                              className="w-full"
+                              onClick={() => handleWithdraw(row.id)}
+                              disabled={updating}
+                            >
+                              Withdraw
+                            </Button>
+                          ) : null}
+                        </div>
+                      )}
+                    </div>
                   );
                 })}
-              </TBody>
-            </Table>
+              </div>
+              <div className="hidden overflow-x-auto py-0 md:block">
+                <Table>
+                  <THead>
+                    <TR>
+                      <TH>Pupil</TH>
+                      <TH>Status</TH>
+                      <TH>UNEB no.</TH>
+                      <TH>Avg %</TH>
+                      <TH>Aggregate</TH>
+                      <TH>Division</TH>
+                      {isAdmin ? <TH>Actions</TH> : null}
+                    </TR>
+                  </THead>
+                  <TBody>
+                    {candidates.map((row) => {
+                      const name = formatStudentFullName({
+                        last_name: row.student.last_name,
+                        middle_name: row.student.middle_name,
+                        first_name: row.student.first_name,
+                      });
+                      const editing = editingId === row.id;
+                      return (
+                        <TR key={row.id}>
+                          <TD>
+                            <Link
+                              href={`/app/m/students/${row.student_id}`}
+                              className="font-medium text-brand-700 hover:underline"
+                            >
+                              {name}
+                            </Link>
+                            <p className="text-[10px] text-slate-500">
+                              {[row.student.class_label, row.student.stream_name]
+                                .filter(Boolean)
+                                .join(" · ")}
+                            </p>
+                          </TD>
+                          <TD>
+                            <Badge tone={STATUS_TONE[row.status] ?? "neutral"}>{row.status}</Badge>
+                          </TD>
+                          <TD>
+                            {editing ? (
+                              <Input
+                                value={candidateNumber}
+                                onChange={(e) => setCandidateNumber(e.target.value)}
+                                placeholder="UNEB index"
+                                className="h-7 text-[12px]"
+                              />
+                            ) : (
+                              row.candidate_number ?? "—"
+                            )}
+                          </TD>
+                          <ReadinessCells readiness={row.readiness} />
+                          {isAdmin ? (
+                            <TD>
+                              <div className="flex flex-wrap gap-1">
+                                {row.status === "nominated" ? (
+                                  editing ? (
+                                    <>
+                                      <Button
+                                        size="sm"
+                                        onClick={() => handleRegister(row)}
+                                        disabled={updating}
+                                      >
+                                        Save
+                                      </Button>
+                                      <Button
+                                        size="sm"
+                                        variant="secondary"
+                                        onClick={() => {
+                                          setEditingId(null);
+                                          setCandidateNumber("");
+                                        }}
+                                      >
+                                        Cancel
+                                      </Button>
+                                    </>
+                                  ) : (
+                                    <Button
+                                      size="sm"
+                                      variant="secondary"
+                                      onClick={() => {
+                                        setEditingId(row.id);
+                                        setCandidateNumber(row.candidate_number ?? "");
+                                      }}
+                                    >
+                                      Register
+                                    </Button>
+                                  )
+                                ) : null}
+                                {row.status === "registered" ? (
+                                  <Button
+                                    size="sm"
+                                    variant="secondary"
+                                    onClick={() => handleWithdraw(row.id)}
+                                    disabled={updating}
+                                  >
+                                    Withdraw
+                                  </Button>
+                                ) : null}
+                              </div>
+                            </TD>
+                          ) : null}
+                        </TR>
+                      );
+                    })}
+                  </TBody>
+                </Table>
+              </div>
+            </>
           )}
         </CardBody>
       </Card>

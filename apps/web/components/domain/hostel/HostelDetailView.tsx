@@ -17,6 +17,7 @@ import { PageHeader } from "@/components/ui/PageHeader";
 import { PageLoader } from "@/components/ui/Spinner";
 import { Table, TBody, TD, TH, THead, TR } from "@/components/ui/Table";
 import { useToast } from "@/components/ui/Toast";
+import { useConfirm } from "@/components/ui/Dialog";
 import { parseError } from "@/lib/apiError";
 import type { HostelRoomOut } from "@/lib/types";
 import {
@@ -43,6 +44,7 @@ const compactControl = "h-7 text-[12px]";
 
 export function HostelDetailView({ hostelId }: { hostelId: string }) {
   const { toast } = useToast();
+  const confirm = useConfirm();
   const router = useRouter();
   const user = useAppSelector((s) => s.auth.user);
   const isAdmin = user?.role === "school_admin" || user?.role === "deputy_head";
@@ -124,7 +126,13 @@ export function HostelDetailView({ hostelId }: { hostelId: string }) {
   }
 
   async function removeHostel() {
-    if (!window.confirm(`Delete ${hostel!.name}? This cannot be undone.`)) return;
+    const ok = await confirm({
+      title: "Delete hostel",
+      description: `Delete ${hostel!.name}? This permanently removes rooms and allocations.`,
+      confirmLabel: "Delete hostel",
+      tone: "danger",
+    });
+    if (!ok) return;
     try {
       await deleteHostel(hostelId).unwrap();
       toast("Hostel deleted.", "success");
@@ -192,7 +200,13 @@ export function HostelDetailView({ hostelId }: { hostelId: string }) {
   }
 
   async function removeRoom(room: HostelRoomOut) {
-    if (!window.confirm(`Delete room ${room.name}?`)) return;
+    const ok = await confirm({
+      title: "Delete room",
+      description: `Delete room ${room.name}? Residents must be moved first.`,
+      confirmLabel: "Delete room",
+      tone: "danger",
+    });
+    if (!ok) return;
     try {
       await deleteRoom({ hostelId, roomId: room.id }).unwrap();
       toast("Room deleted.", "success");
@@ -220,7 +234,12 @@ export function HostelDetailView({ hostelId }: { hostelId: string }) {
   }
 
   async function checkoutResident(studentId: string, name: string) {
-    if (!window.confirm(`Check ${name} out of ${hostel!.name}?`)) return;
+    const ok = await confirm({
+      title: "Check out resident",
+      description: `Check ${name} out of ${hostel!.name}?`,
+      confirmLabel: "Check out",
+    });
+    if (!ok) return;
     try {
       await checkout({ student_id: studentId }).unwrap();
       toast("Resident checked out.", "success");
@@ -248,12 +267,12 @@ export function HostelDetailView({ hostelId }: { hostelId: string }) {
         description={[hostel.code, hostel.location].filter(Boolean).join(" · ") || undefined}
         action={
           isAdmin ? (
-            <div className="flex gap-2">
-              <Button variant="secondary" onClick={() => setEditing((v) => !v)}>
+            <div className="flex w-full flex-col gap-2 sm:w-auto sm:flex-row">
+              <Button variant="secondary" className="w-full sm:w-auto" onClick={() => setEditing((v) => !v)}>
                 <Icon name="settings" size={13} />
                 {editing ? "Close" : "Edit"}
               </Button>
-              <Button variant="danger" loading={deleting} onClick={removeHostel}>
+              <Button variant="danger" className="w-full sm:w-auto" loading={deleting} onClick={removeHostel}>
                 <Icon name="x" size={13} />
                 Delete
               </Button>
@@ -363,7 +382,7 @@ export function HostelDetailView({ hostelId }: { hostelId: string }) {
                   {hostel.rooms.map((room) => (
                     <div
                       key={room.id}
-                      className="flex items-center gap-3 rounded-lg border border-slate-200/80 px-3 py-2"
+                      className="flex flex-col gap-2 rounded-lg border border-slate-200/80 px-3 py-2 sm:flex-row sm:items-center sm:gap-3"
                     >
                       {editingRoomId === room.id ? (
                         <>
@@ -436,20 +455,22 @@ export function HostelDetailView({ hostelId }: { hostelId: string }) {
               )}
 
               {isAdmin ? (
-                <div className="flex flex-wrap items-end gap-2 border-t border-slate-100 pt-3">
+                <div className="grid gap-3 border-t border-slate-100 pt-3 sm:grid-cols-2 lg:grid-cols-4">
                   <FormField label="Room name">
-                    <Input value={roomName} onChange={(e) => setRoomName(e.target.value)} placeholder="e.g. Room 1" className={`${compactControl} w-32`} />
+                    <Input value={roomName} onChange={(e) => setRoomName(e.target.value)} placeholder="e.g. Room 1" className={compactControl} />
                   </FormField>
                   <FormField label="Beds">
-                    <Input type="number" min={0} value={roomCapacity} onChange={(e) => setRoomCapacity(e.target.value)} placeholder="0" className={`${compactControl} w-20`} />
+                    <Input type="number" min={0} value={roomCapacity} onChange={(e) => setRoomCapacity(e.target.value)} placeholder="0" className={compactControl} />
                   </FormField>
                   <FormField label="Floor">
-                    <Input value={roomFloor} onChange={(e) => setRoomFloor(e.target.value)} placeholder="Optional" className={`${compactControl} w-24`} />
+                    <Input value={roomFloor} onChange={(e) => setRoomFloor(e.target.value)} placeholder="Optional" className={compactControl} />
                   </FormField>
-                  <Button size="sm" loading={creatingRoom} onClick={() => void addRoom()}>
-                    <Icon name="plus" size={12} />
-                    Add room
-                  </Button>
+                  <div className="flex items-end sm:col-span-2 lg:col-span-4">
+                    <Button size="sm" className="w-full sm:w-auto" loading={creatingRoom} onClick={() => void addRoom()}>
+                      <Icon name="plus" size={12} />
+                      Add room
+                    </Button>
+                  </div>
                 </div>
               ) : null}
             </CardBody>
@@ -463,7 +484,7 @@ export function HostelDetailView({ hostelId }: { hostelId: string }) {
           title={`Residents (${hostel.residents.length})`}
           description="Boarders allocated to this hostel. Assign a room or check a resident out."
         />
-        <CardBody className="overflow-x-auto py-0">
+        <CardBody className="py-0 md:overflow-x-auto">
           {hostel.residents.length === 0 ? (
             <EmptyState
               icon={<Icon name="bed" size={18} />}
@@ -471,6 +492,57 @@ export function HostelDetailView({ hostelId }: { hostelId: string }) {
               description="Allocate boarders here, or during enrollment by choosing this hostel."
             />
           ) : (
+            <>
+              <div className="space-y-2 p-3 md:hidden">
+                {hostel.residents.map((r) => {
+                  const name = formatStudentFullName({
+                    last_name: r.last_name,
+                    middle_name: r.middle_name,
+                    first_name: r.first_name,
+                  });
+                  return (
+                    <div key={r.student_id} className="rounded-lg border border-slate-200 bg-white p-3">
+                      <Link href={`/app/m/students/${r.student_id}`} className="font-medium text-brand-700 hover:underline">
+                        {name}
+                      </Link>
+                      <p className="font-mono text-[10px] text-slate-400">{r.student_number}</p>
+                      <p className="mt-1 text-[11px] text-slate-600">
+                        {[r.class_label, r.stream_name].filter(Boolean).join(" · ") || "—"}
+                      </p>
+                      {isAdmin ? (
+                        <>
+                          <div className="mt-2">
+                            <FormField label="Room">
+                              <Select
+                                value={r.hostel_room_id ?? ""}
+                                disabled={movingId === r.student_id || allocating}
+                                onChange={(e) => moveResident(r.student_id, e.target.value)}
+                                className={`${compactControl} w-full`}
+                              >
+                                <option value="">Unassigned</option>
+                                {hostel.rooms.map((room) => (
+                                  <option key={room.id} value={room.id}>{room.name}</option>
+                                ))}
+                              </Select>
+                            </FormField>
+                          </div>
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            className="mt-2 w-full"
+                            onClick={() => checkoutResident(r.student_id, name)}
+                          >
+                            Check out
+                          </Button>
+                        </>
+                      ) : (
+                        <p className="mt-2 text-[11px] text-slate-500">Room: {r.room_name ?? "Unassigned"}</p>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+              <div className="hidden md:block">
             <Table>
               <THead>
                 <TR>
@@ -529,6 +601,8 @@ export function HostelDetailView({ hostelId }: { hostelId: string }) {
                 })}
               </TBody>
             </Table>
+              </div>
+            </>
           )}
         </CardBody>
       </Card>

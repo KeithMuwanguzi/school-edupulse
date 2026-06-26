@@ -8,6 +8,7 @@ from pydantic import BaseModel, Field, field_validator
 from app.models.enums import NcdcCycle
 
 CYCLE_SECTIONS: list[tuple[NcdcCycle, str]] = [
+    (NcdcCycle.ecd, "Baby–Top"),
     (NcdcCycle.cycle_1, "P1–P3"),
     (NcdcCycle.cycle_2, "P4"),
     (NcdcCycle.cycle_3, "P5–P7"),
@@ -21,8 +22,7 @@ class GradeRangeOut(BaseModel):
     aggregate_weight: int
     min_mark: int
     max_mark: int
-    class_teacher_comment: str | None = None
-    head_teacher_comment: str | None = None
+    comment: str | None = None
     sort_order: int
     is_active: bool
 
@@ -32,8 +32,7 @@ class GradeRangeCreate(BaseModel):
     aggregate_weight: int = Field(ge=1, le=9)
     min_mark: int = Field(ge=0, le=100)
     max_mark: int = Field(ge=0, le=100)
-    class_teacher_comment: str | None = Field(default=None, max_length=2000)
-    head_teacher_comment: str | None = Field(default=None, max_length=2000)
+    comment: str | None = Field(default=None, max_length=200)
     sort_order: int | None = None
 
     @field_validator("max_mark")
@@ -50,8 +49,7 @@ class GradeRangeUpdate(BaseModel):
     aggregate_weight: int | None = Field(default=None, ge=1, le=9)
     min_mark: int | None = Field(default=None, ge=0, le=100)
     max_mark: int | None = Field(default=None, ge=0, le=100)
-    class_teacher_comment: str | None = Field(default=None, max_length=2000)
-    head_teacher_comment: str | None = Field(default=None, max_length=2000)
+    comment: str | None = Field(default=None, max_length=200)
     sort_order: int | None = None
     is_active: bool | None = None
 
@@ -94,10 +92,20 @@ class SubjectGradingOut(BaseModel):
     ncdc_cycles: list[str]
     grading_scale_id: UUID | None = None
     grading_scale_name: str | None = None
+    in_section: bool = True
 
 
 class SubjectGradingScaleUpdate(BaseModel):
     grading_scale_id: UUID | None = None
+    ncdc_cycle: str
+
+    @field_validator("ncdc_cycle")
+    @classmethod
+    def _cycle(cls, v: str) -> str:
+        v = v.strip()
+        if v not in {c.value for c in NcdcCycle}:
+            raise ValueError("ncdc_cycle must be ecd, cycle_1, cycle_2, or cycle_3")
+        return v
 
 
 class CycleGradingSectionOut(BaseModel):
@@ -105,6 +113,7 @@ class CycleGradingSectionOut(BaseModel):
     cycle_label: str
     scales: list[GradingScaleOut]
     subjects: list[SubjectGradingOut]
+    extendable_subjects: list[SubjectGradingOut] = Field(default_factory=list)
 
 
 class AggregateDivisionOut(BaseModel):

@@ -2,6 +2,7 @@
 
 import { useMemo, useRef, useState } from "react";
 import { ReportCardPreview } from "@/components/domain/reportcards/ReportCardPreview";
+import { ReportCardViewport } from "@/components/domain/reportcards/ReportCardViewport";
 import {
   exportClassZip,
   exportElementToPdf,
@@ -14,6 +15,7 @@ import { Card, CardBody, CardHeader } from "@/components/ui/Card";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { ErrorBanner } from "@/components/ui/ErrorBanner";
 import { PageHeader } from "@/components/ui/PageHeader";
+import { PageToolbar, PageToolbarGroup } from "@/components/ui/PageToolbar";
 import { Select } from "@/components/ui/Select";
 import { PageLoader } from "@/components/ui/Spinner";
 import { parseError } from "@/lib/apiError";
@@ -140,44 +142,52 @@ export function ReportCardsView() {
     }
   }
 
+  const exportActions = (
+    <>
+      {classId && students?.length ? (
+        <Button
+          size="sm"
+          variant="secondary"
+          className="w-full sm:w-auto"
+          onClick={handleExportClass}
+          disabled={exporting}
+        >
+          Export class (ZIP)
+        </Button>
+      ) : null}
+      {preview ? (
+        <>
+          <Button
+            size="sm"
+            variant="secondary"
+            className="w-full sm:w-auto"
+            onClick={handleExportIndividual}
+            disabled={exporting}
+          >
+            Export PDF
+          </Button>
+          <Button size="sm" className="w-full sm:w-auto" onClick={handlePrint} disabled={exporting}>
+            Print
+          </Button>
+        </>
+      ) : null}
+    </>
+  );
+
   if (classesLoading) return <PageLoader />;
   if (classesError) {
     return <ErrorBanner message={parseError(classesErr).message} />;
   }
 
   return (
-    <div className="space-y-5">
+    <div className={`space-y-5 ${preview ? "pb-24 sm:pb-5" : ""}`}>
       <PageHeader
         eyebrow="Operations"
         title="Report cards"
         description="Preview, print, and export professional term reports. Marks, grades, and remarks are drawn from recorded assessments and Settings → Grading."
         action={
-          <div className="flex flex-wrap gap-2">
-            {classId && students?.length ? (
-              <Button
-                size="sm"
-                variant="secondary"
-                onClick={handleExportClass}
-                disabled={exporting}
-              >
-                Export class (ZIP)
-              </Button>
-            ) : null}
-            {preview ? (
-              <>
-                <Button
-                  size="sm"
-                  variant="secondary"
-                  onClick={handleExportIndividual}
-                  disabled={exporting}
-                >
-                  Export PDF
-                </Button>
-                <Button size="sm" onClick={handlePrint} disabled={exporting}>
-                  Print
-                </Button>
-              </>
-            ) : null}
+          <div className="hidden sm:block">
+            <PageToolbar>{exportActions}</PageToolbar>
           </div>
         }
       />
@@ -282,7 +292,15 @@ export function ReportCardsView() {
       ) : null}
       {preview && !previewFetching ? (
         <div ref={cardRef}>
-          <ReportCardPreview data={preview} />
+          <ReportCardViewport>
+            <ReportCardPreview data={preview} />
+          </ReportCardViewport>
+        </div>
+      ) : null}
+
+      {preview && !previewFetching ? (
+        <div className="report-card-no-print fixed inset-x-0 bottom-0 z-20 border-t border-slate-200 bg-white/95 p-3 shadow-lg backdrop-blur sm:hidden">
+          <PageToolbarGroup className="w-full">{exportActions}</PageToolbarGroup>
         </div>
       ) : null}
     </div>

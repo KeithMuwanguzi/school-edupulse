@@ -13,6 +13,7 @@ import {
   useUpdateTeacherAssignmentMutation,
 } from "@/store/api/skulpulseApi";
 import { useToast } from "@/components/ui/Toast";
+import { useConfirm } from "@/components/ui/Dialog";
 import { parseError } from "@/lib/apiError";
 
 function formatPlacement(row: TeacherAssignmentOut): string {
@@ -25,8 +26,98 @@ interface TeacherAssignmentListProps {
   isAdmin: boolean;
 }
 
+function AssignmentEditForm({
+  draft,
+  setDraft,
+  streamOptions,
+  classes,
+  subjects,
+  saving,
+  onSave,
+  onCancel,
+}: {
+  draft: {
+    class_id: string;
+    subject_id: string;
+    stream_id: string;
+    is_class_teacher: boolean;
+  };
+  setDraft: React.Dispatch<
+    React.SetStateAction<{
+      class_id: string;
+      subject_id: string;
+      stream_id: string;
+      is_class_teacher: boolean;
+    }>
+  >;
+  streamOptions: { id: string; name: string }[];
+  classes: { id: string; level: string; label: string | null }[];
+  subjects: { id: string; code: string; name: string }[];
+  saving: boolean;
+  onSave: () => void;
+  onCancel: () => void;
+}) {
+  return (
+    <div className="space-y-2 rounded-lg border border-brand-100 bg-brand-50/40 p-3">
+      <Select
+        value={draft.class_id}
+        onChange={(e) => setDraft((d) => ({ ...d, class_id: e.target.value, stream_id: "" }))}
+        className="h-9 w-full text-[12px]"
+      >
+        {classes.map((c) => (
+          <option key={c.id} value={c.id}>
+            {c.label ? `${c.level} · ${c.label}` : c.level}
+          </option>
+        ))}
+      </Select>
+      <Select
+        value={draft.stream_id}
+        disabled={streamOptions.length === 0}
+        onChange={(e) => setDraft((d) => ({ ...d, stream_id: e.target.value }))}
+        className="h-9 w-full text-[12px]"
+      >
+        <option value="">All streams</option>
+        {streamOptions.map((s) => (
+          <option key={s.id} value={s.id}>
+            {s.name}
+          </option>
+        ))}
+      </Select>
+      <Select
+        value={draft.subject_id}
+        onChange={(e) => setDraft((d) => ({ ...d, subject_id: e.target.value }))}
+        className="h-9 w-full text-[12px]"
+      >
+        {subjects.map((s) => (
+          <option key={s.id} value={s.id}>
+            {s.code} — {s.name}
+          </option>
+        ))}
+      </Select>
+      <label className="flex items-center gap-2 text-[12px] text-slate-600">
+        <input
+          type="checkbox"
+          checked={draft.is_class_teacher}
+          onChange={(e) => setDraft((d) => ({ ...d, is_class_teacher: e.target.checked }))}
+          className="rounded border-slate-300"
+        />
+        Class teacher
+      </label>
+      <div className="flex flex-col gap-2 sm:flex-row">
+        <Button size="sm" loading={saving} className="w-full sm:w-auto" onClick={onSave}>
+          Save
+        </Button>
+        <Button size="sm" variant="ghost" className="w-full sm:w-auto" onClick={onCancel}>
+          Cancel
+        </Button>
+      </div>
+    </div>
+  );
+}
+
 export function TeacherAssignmentList({ assignments, isAdmin }: TeacherAssignmentListProps) {
   const { toast } = useToast();
+  const confirm = useConfirm();
   const { data: classes = [] } = useListClassesQuery(undefined, { skip: !isAdmin });
   const { data: subjects = [] } = useListSubjectsQuery(undefined, { skip: !isAdmin });
   const [deleteAssignment, { isLoading: deleting }] = useDeleteTeacherAssignmentMutation();
@@ -79,7 +170,13 @@ export function TeacherAssignmentList({ assignments, isAdmin }: TeacherAssignmen
   }
 
   async function remove(id: string, label: string) {
-    if (!window.confirm(`Remove assignment for ${label}?`)) return;
+    const ok = await confirm({
+      title: "Remove assignment",
+      description: `Remove assignment for ${label}?`,
+      confirmLabel: "Remove",
+      tone: "danger",
+    });
+    if (!ok) return;
     try {
       await deleteAssignment(id).unwrap();
       toast("Assignment removed.", "success");
@@ -95,123 +192,170 @@ export function TeacherAssignmentList({ assignments, isAdmin }: TeacherAssignmen
   }
 
   return (
-    <Table>
-      <THead>
-        <tr>
-          <TH>Class</TH>
-          <TH>Subject</TH>
-          <TH className="hidden sm:table-cell">Term</TH>
-          {isAdmin && <TH className="w-28" />}
-        </tr>
-      </THead>
-      <TBody>
-        {assignments.map((row) => (
-          <TR key={row.id}>
-            {editingId === row.id ? (
-              <>
-                <TD>
-                  <div className="space-y-1">
-                    <Select
-                      value={draft.class_id}
-                      onChange={(e) =>
-                        setDraft((d) => ({ ...d, class_id: e.target.value, stream_id: "" }))
-                      }
-                      className="h-7 text-[12px]"
-                    >
-                      {classes.map((c) => (
-                        <option key={c.id} value={c.id}>
-                          {c.label ? `${c.level} · ${c.label}` : c.level}
-                        </option>
-                      ))}
-                    </Select>
-                    <Select
-                      value={draft.stream_id}
-                      disabled={streamOptions.length === 0}
-                      onChange={(e) => setDraft((d) => ({ ...d, stream_id: e.target.value }))}
-                      className="h-7 text-[12px]"
-                    >
-                      <option value="">All streams</option>
-                      {streamOptions.map((s) => (
-                        <option key={s.id} value={s.id}>
-                          {s.name}
-                        </option>
-                      ))}
-                    </Select>
-                  </div>
-                </TD>
-                <TD>
-                  <Select
-                    value={draft.subject_id}
-                    onChange={(e) => setDraft((d) => ({ ...d, subject_id: e.target.value }))}
-                    className="h-7 text-[12px]"
+    <>
+      <div className="space-y-2 md:hidden">
+        {assignments.map((row) =>
+          editingId === row.id ? (
+            <AssignmentEditForm
+              key={row.id}
+              draft={draft}
+              setDraft={setDraft}
+              streamOptions={streamOptions}
+              classes={classes}
+              subjects={subjects}
+              saving={saving}
+              onSave={() => void saveEdit(row.id)}
+              onCancel={() => setEditingId(null)}
+            />
+          ) : (
+            <div key={row.id} className="rounded-lg border border-slate-200 bg-white p-3">
+              <p className="text-[13px] font-medium text-slate-900">{formatPlacement(row)}</p>
+              <p className="mt-0.5 text-[12px] text-slate-600">
+                {row.subject_name}{" "}
+                <span className="font-mono text-[10px] text-slate-400">{row.subject_code}</span>
+              </p>
+              <p className="mt-0.5 text-[11px] text-slate-400">{row.term_label ?? "Whole year"}</p>
+              {isAdmin && (
+                <div className="mt-3 flex flex-col gap-1.5 sm:flex-row">
+                  <Button size="sm" variant="ghost" className="w-full sm:w-auto" onClick={() => startEdit(row)}>
+                    Edit
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    className="w-full sm:w-auto"
+                    disabled={deleting}
+                    onClick={() => void remove(row.id, row.subject_code)}
                   >
-                    {subjects.map((s) => (
-                      <option key={s.id} value={s.id}>
-                        {s.code} — {s.name}
-                      </option>
-                    ))}
-                  </Select>
-                </TD>
-                <TD className="hidden sm:table-cell">
-                  <label className="flex items-center gap-1.5 text-[11px] text-slate-500">
-                    <input
-                      type="checkbox"
-                      checked={draft.is_class_teacher}
-                      onChange={(e) =>
-                        setDraft((d) => ({ ...d, is_class_teacher: e.target.checked }))
-                      }
-                      className="rounded border-slate-300"
-                    />
-                    Class teacher
-                  </label>
-                </TD>
-                <TD>
-                  <div className="flex flex-col gap-1">
-                    <Button size="sm" loading={saving} onClick={() => void saveEdit(row.id)}>
-                      Save
-                    </Button>
-                    <Button size="sm" variant="ghost" onClick={() => setEditingId(null)}>
-                      Cancel
-                    </Button>
-                  </div>
-                </TD>
-              </>
-            ) : (
-              <>
-                <TD>{formatPlacement(row)}</TD>
-                <TD>
-                  <span className="font-medium text-slate-700">{row.subject_name}</span>
-                  <span className="ml-1 font-mono text-[10px] text-slate-400">{row.subject_code}</span>
-                </TD>
-                <TD className="hidden text-slate-400 sm:table-cell">
-                  {row.term_label ?? "Whole year"}
-                </TD>
-                {isAdmin && (
-                  <TD>
-                    <div className="flex gap-2">
-                      <button
-                        type="button"
-                        onClick={() => startEdit(row)}
-                        className="text-[11px] text-slate-400 hover:text-brand-700"
+                    Remove
+                  </Button>
+                </div>
+              )}
+            </div>
+          ),
+        )}
+      </div>
+
+      <div className="hidden md:block">
+        <Table>
+          <THead>
+            <tr>
+              <TH>Class</TH>
+              <TH>Subject</TH>
+              <TH className="hidden sm:table-cell">Term</TH>
+              {isAdmin && <TH className="w-28" />}
+            </tr>
+          </THead>
+          <TBody>
+            {assignments.map((row) => (
+              <TR key={row.id}>
+                {editingId === row.id ? (
+                  <>
+                    <TD>
+                      <div className="space-y-1">
+                        <Select
+                          value={draft.class_id}
+                          onChange={(e) =>
+                            setDraft((d) => ({ ...d, class_id: e.target.value, stream_id: "" }))
+                          }
+                          className="h-7 text-[12px]"
+                        >
+                          {classes.map((c) => (
+                            <option key={c.id} value={c.id}>
+                              {c.label ? `${c.level} · ${c.label}` : c.level}
+                            </option>
+                          ))}
+                        </Select>
+                        <Select
+                          value={draft.stream_id}
+                          disabled={streamOptions.length === 0}
+                          onChange={(e) => setDraft((d) => ({ ...d, stream_id: e.target.value }))}
+                          className="h-7 text-[12px]"
+                        >
+                          <option value="">All streams</option>
+                          {streamOptions.map((s) => (
+                            <option key={s.id} value={s.id}>
+                              {s.name}
+                            </option>
+                          ))}
+                        </Select>
+                      </div>
+                    </TD>
+                    <TD>
+                      <Select
+                        value={draft.subject_id}
+                        onChange={(e) => setDraft((d) => ({ ...d, subject_id: e.target.value }))}
+                        className="h-7 text-[12px]"
                       >
-                        Edit
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => void remove(row.id, row.subject_code)}
-                        disabled={deleting}
-                        className="text-[11px] text-slate-400 hover:text-red-600 disabled:opacity-50"
-                      >
-                        Remove
-                      </button>
-                    </div>
-                  </TD>
+                        {subjects.map((s) => (
+                          <option key={s.id} value={s.id}>
+                            {s.code} — {s.name}
+                          </option>
+                        ))}
+                      </Select>
+                    </TD>
+                    <TD className="hidden sm:table-cell">
+                      <label className="flex items-center gap-1.5 text-[11px] text-slate-500">
+                        <input
+                          type="checkbox"
+                          checked={draft.is_class_teacher}
+                          onChange={(e) =>
+                            setDraft((d) => ({ ...d, is_class_teacher: e.target.checked }))
+                          }
+                          className="rounded border-slate-300"
+                        />
+                        Class teacher
+                      </label>
+                    </TD>
+                    <TD>
+                      <div className="flex flex-col gap-1">
+                        <Button size="sm" loading={saving} onClick={() => void saveEdit(row.id)}>
+                          Save
+                        </Button>
+                        <Button size="sm" variant="ghost" onClick={() => setEditingId(null)}>
+                          Cancel
+                        </Button>
+                      </div>
+                    </TD>
+                  </>
+                ) : (
+                  <>
+                    <TD>{formatPlacement(row)}</TD>
+                    <TD>
+                      <span className="font-medium text-slate-700">{row.subject_name}</span>
+                      <span className="ml-1 font-mono text-[10px] text-slate-400">{row.subject_code}</span>
+                    </TD>
+                    <TD className="hidden text-slate-400 sm:table-cell">
+                      {row.term_label ?? "Whole year"}
+                    </TD>
+                    {isAdmin && (
+                      <TD>
+                        <div className="flex gap-2">
+                          <button
+                            type="button"
+                            onClick={() => startEdit(row)}
+                            className="text-[11px] text-slate-400 hover:text-brand-700"
+                          >
+                            Edit
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => void remove(row.id, row.subject_code)}
+                            disabled={deleting}
+                            className="text-[11px] text-slate-400 hover:text-red-600 disabled:opacity-50"
+                          >
+                            Remove
+                          </button>
+                        </div>
+                      </TD>
+                    )}
+                  </>
                 )}
-              </>
-            )}
-          </TR>
-        ))}
-      </TBody>
-    </Table>
+              </TR>
+            ))}
+          </TBody>
+        </Table>
+      </div>
+    </>
   );
 }

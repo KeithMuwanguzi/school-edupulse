@@ -9,12 +9,14 @@ import { Input } from "@/components/ui/Input";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { parseError } from "@/lib/apiError";
 import { useToast } from "@/components/ui/Toast";
+import { useConfirm } from "@/components/ui/Dialog";
 import { useResetPlatformDataMutation } from "@/store/api/skulpulseApi";
 
 const CONFIRMATION_PHRASE = "RESET ALL DATA";
 
 export function PlatformSystemView() {
   const { toast } = useToast();
+  const confirm = useConfirm();
   const [confirmation, setConfirmation] = useState("");
   const [acknowledged, setAcknowledged] = useState(false);
   const [resetData, { isLoading, isError, error }] = useResetPlatformDataMutation();
@@ -24,13 +26,14 @@ export function PlatformSystemView() {
 
   async function handleReset() {
     if (!canSubmit) return;
-    if (
-      !window.confirm(
-        "This permanently deletes all schools, learners, logs, and uploads. Your platform admin login is kept. Continue?",
-      )
-    ) {
-      return;
-    }
+    const ok = await confirm({
+      title: "Reset all platform data",
+      description:
+        "This permanently deletes all schools, learners, logs, and uploads. Your platform admin login is kept.",
+      confirmLabel: "Reset all data",
+      tone: "danger",
+    });
+    if (!ok) return;
 
     try {
       const result = await resetData({ confirmation: CONFIRMATION_PHRASE }).unwrap();

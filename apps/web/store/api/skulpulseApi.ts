@@ -59,6 +59,10 @@ import type {
   CycleGradingSectionOut,
   SubjectGradingOut,
   AggregateDivisionOut,
+  AuditLogFileItem,
+  AuditLogItem,
+  PlatformAdminCreateResponse,
+  PlatformAdminOut,
   ReportCardClassOption,
   ReportCardPreviewOut,
   ReportCardStudentOut,
@@ -154,7 +158,7 @@ function idempotent(): FetchArgs["headers"] {
 export const skulpulseApi = createApi({
   reducerPath: "skulpulseApi",
   baseQuery: baseQueryWithReauth,
-  tagTypes: ["Schools", "School", "Me", "TenantSchool", "TenantModules", "AcademicCalendar", "Subjects", "Classes", "TenantUsers", "Students", "Teachers", "Attendance", "Timetable", "TermRegistration", "Grading", "Admissions", "ReportCards", "Finance", "Assessment", "Ple", "Hostel"],
+  tagTypes: ["Schools", "School", "Me", "TenantSchool", "TenantModules", "AcademicCalendar", "Subjects", "Classes", "TenantUsers", "Students", "Teachers", "Attendance", "Timetable", "TermRegistration", "Grading", "Admissions", "ReportCards", "Finance", "Assessment", "Ple", "Hostel", "PlatformAdmins"],
   endpoints: (builder) => ({
     // --- Auth ---
     platformLogin: builder.mutation<TokenResponse, { email: string; password: string }>({
@@ -169,6 +173,13 @@ export const skulpulseApi = createApi({
     getMe: builder.query<Me, void>({
       query: () => "/auth/me",
       providesTags: ["Me"],
+    }),
+    changePassword: builder.mutation<
+      TokenResponse,
+      { current_password: string; new_password: string }
+    >({
+      query: (body) => ({ url: "/auth/tenant/change-password", method: "POST", body }),
+      invalidatesTags: ["Me"],
     }),
 
     // --- Platform: schools ---
@@ -225,6 +236,22 @@ export const skulpulseApi = createApi({
     }),
     listSchoolUsers: builder.query<PortalUser[], string>({
       query: (tenantId) => `/platform/schools/${tenantId}/users`,
+    }),
+    resetPlatformUserPassword: builder.mutation<
+      PasswordResetStubResponse,
+      { tenantId: string; userId: string }
+    >({
+      query: ({ tenantId, userId }) => ({
+        url: `/platform/schools/${tenantId}/users/${userId}/password-reset`,
+        method: "POST",
+      }),
+    }),
+    resetPlatformAdminCredentials: builder.mutation<PasswordResetStubResponse, string>({
+      query: (tenantId) => ({
+        url: `/platform/schools/${tenantId}/admin/reset-credentials`,
+        method: "POST",
+      }),
+      invalidatesTags: ["School"],
     }),
     uploadPlatformSchoolBadge: builder.mutation<SchoolDetail, { tenantId: string; file: File }>({
       query: ({ tenantId, file }) => {
@@ -293,6 +320,71 @@ export const skulpulseApi = createApi({
         const qs = p.toString();
         return `/platform/logs/errors${qs ? `?${qs}` : ""}`;
       },
+    }),
+    auditLogs: builder.query<
+      AuditLogItem[],
+      {
+        tenant_id?: string;
+        actor_type?: string;
+        actor_id?: string;
+        action?: string;
+        before?: string;
+        limit?: number;
+      } | void
+    >({
+      query: (params) => {
+        const p = new URLSearchParams();
+        if (params?.tenant_id) p.set("tenant_id", params.tenant_id);
+        if (params?.actor_type) p.set("actor_type", params.actor_type);
+        if (params?.actor_id) p.set("actor_id", params.actor_id);
+        if (params?.action) p.set("action", params.action);
+        if (params?.before) p.set("before", params.before);
+        if (params?.limit) p.set("limit", String(params.limit));
+        const qs = p.toString();
+        return `/platform/logs/audit${qs ? `?${qs}` : ""}`;
+      },
+    }),
+    auditLogFiles: builder.query<AuditLogFileItem[], void>({
+      query: () => "/platform/logs/files",
+    }),
+    listPlatformAdmins: builder.query<PlatformAdminOut[], void>({
+      query: () => "/platform/admins",
+      providesTags: ["PlatformAdmins"],
+    }),
+    createPlatformAdmin: builder.mutation<
+      PlatformAdminCreateResponse,
+      { email: string; name: string; password?: string; notify?: boolean }
+    >({
+      query: (body) => ({
+        url: "/platform/admins",
+        method: "POST",
+        body,
+      }),
+      invalidatesTags: ["PlatformAdmins"],
+    }),
+    updatePlatformAdmin: builder.mutation<
+      PlatformAdminOut,
+      { adminId: string; body: { name?: string; email?: string; is_active?: boolean } }
+    >({
+      query: ({ adminId, body }) => ({
+        url: `/platform/admins/${adminId}`,
+        method: "PATCH",
+        body,
+      }),
+      invalidatesTags: ["PlatformAdmins"],
+    }),
+    deletePlatformAdmin: builder.mutation<void, string>({
+      query: (adminId) => ({
+        url: `/platform/admins/${adminId}`,
+        method: "DELETE",
+      }),
+      invalidatesTags: ["PlatformAdmins"],
+    }),
+    resetPlatformAdminPassword: builder.mutation<PasswordResetStubResponse, string>({
+      query: (adminId) => ({
+        url: `/platform/admins/${adminId}/password-reset`,
+        method: "POST",
+      }),
     }),
     resetPlatformData: builder.mutation<
       { platform_admins_preserved: number; tables_truncated: number },
@@ -399,7 +491,7 @@ export const skulpulseApi = createApi({
       }
     >({
       query: (body) => ({ url: "/tenant/subjects", method: "POST", body }),
-      invalidatesTags: ["Subjects"],
+      invalidatesTags: ["Subjects", "Grading"],
     }),
     updateSubject: builder.mutation<
       SubjectOut,
@@ -410,14 +502,14 @@ export const skulpulseApi = createApi({
         method: "PATCH",
         body,
       }),
-      invalidatesTags: ["Subjects"],
+      invalidatesTags: ["Subjects", "Grading"],
     }),
     deleteSubject: builder.mutation<void, string>({
       query: (subjectId) => ({
         url: `/tenant/subjects/${subjectId}`,
         method: "DELETE",
       }),
-      invalidatesTags: ["Subjects"],
+      invalidatesTags: ["Subjects", "Grading"],
     }),
 
     listClasses: builder.query<ClassOut[], void>({
@@ -426,6 +518,10 @@ export const skulpulseApi = createApi({
     }),
     setupPrimaryClasses: builder.mutation<ClassOut[], void>({
       query: () => ({ url: "/tenant/classes/setup-primary", method: "POST" }),
+      invalidatesTags: ["Classes"],
+    }),
+    setupNurseryClasses: builder.mutation<ClassOut[], void>({
+      query: () => ({ url: "/tenant/classes/setup-nursery", method: "POST" }),
       invalidatesTags: ["Classes"],
     }),
     createClass: builder.mutation<ClassOut, { level: string; label?: string }>({
@@ -1320,12 +1416,12 @@ export const skulpulseApi = createApi({
     }),
     assignSubjectGradingScale: builder.mutation<
       SubjectGradingOut,
-      { subjectId: string; grading_scale_id: string | null }
+      { subjectId: string; grading_scale_id: string | null; ncdc_cycle: string }
     >({
-      query: ({ subjectId, grading_scale_id }) => ({
+      query: ({ subjectId, grading_scale_id, ncdc_cycle }) => ({
         url: `/tenant/grading/subjects/${subjectId}/scale`,
         method: "PATCH",
-        body: { grading_scale_id },
+        body: { grading_scale_id, ncdc_cycle },
       }),
       invalidatesTags: ["Grading"],
     }),
@@ -1353,10 +1449,14 @@ export const skulpulseApi = createApi({
     }),
 
     // --- Finance (Phase 2 §12–§13) ---
-    financeSummary: builder.query<FinanceSummaryOut, { termId?: string } | void>({
+    financeSummary: builder.query<
+      FinanceSummaryOut,
+      { termId?: string; classId?: string } | void
+    >({
       query: (params) => {
         const p = new URLSearchParams();
         if (params?.termId) p.set("term_id", params.termId);
+        if (params?.classId) p.set("class_id", params.classId);
         const qs = p.toString();
         return `/tenant/finance/summary${qs ? `?${qs}` : ""}`;
       },
@@ -1704,12 +1804,15 @@ export const {
   useLogoutMutation,
   useGetMeQuery,
   useLazyGetMeQuery,
+  useChangePasswordMutation,
   useListSchoolsQuery,
   useOnboardSchoolMutation,
   useGetSchoolQuery,
   useUpdateSchoolMutation,
   useReplaceModulesMutation,
   useListSchoolUsersQuery,
+  useResetPlatformUserPasswordMutation,
+  useResetPlatformAdminCredentialsMutation,
   useUploadPlatformSchoolBadgeMutation,
   useDeletePlatformSchoolBadgeMutation,
   useModuleCatalogQuery,
@@ -1717,6 +1820,13 @@ export const {
   useEstimateMutation,
   useRequestLogsQuery,
   useErrorLogsQuery,
+  useAuditLogsQuery,
+  useAuditLogFilesQuery,
+  useListPlatformAdminsQuery,
+  useCreatePlatformAdminMutation,
+  useUpdatePlatformAdminMutation,
+  useDeletePlatformAdminMutation,
+  useResetPlatformAdminPasswordMutation,
   useResetPlatformDataMutation,
   useGetTenantSchoolQuery,
   useUpdateTenantSchoolMutation,
@@ -1737,6 +1847,7 @@ export const {
   useDeleteSubjectMutation,
   useListClassesQuery,
   useSetupPrimaryClassesMutation,
+  useSetupNurseryClassesMutation,
   useCreateClassMutation,
   useUpdateClassMutation,
   useDeleteClassMutation,

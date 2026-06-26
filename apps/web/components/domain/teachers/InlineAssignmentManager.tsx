@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/Button";
 import { Icon } from "@/components/ui/Icon";
 import { Select } from "@/components/ui/Select";
 import { useToast } from "@/components/ui/Toast";
+import { useConfirm } from "@/components/ui/Dialog";
 import { parseError } from "@/lib/apiError";
 import type { NcdcCycle } from "@/lib/types";
 import {
@@ -17,15 +18,7 @@ import {
   useUpdateTeacherAssignmentMutation,
 } from "@/store/api/skulpulseApi";
 
-const LEVEL_CYCLE: Record<string, NcdcCycle> = {
-  P1: "cycle_1",
-  P2: "cycle_1",
-  P3: "cycle_1",
-  P4: "cycle_2",
-  P5: "cycle_3",
-  P6: "cycle_3",
-  P7: "cycle_3",
-};
+import { cycleForLevel } from "@/lib/schoolLevels";
 
 type Scope =
   | { kind: "subject"; subjectId: string; cycles: NcdcCycle[] }
@@ -45,6 +38,7 @@ const control = "h-7 text-[12px]";
 
 export function InlineAssignmentManager({ scope, isAdmin }: InlineAssignmentManagerProps) {
   const { toast } = useToast();
+  const confirm = useConfirm();
   const { data: staff = [] } = useListTeacherStaffQuery();
   const { data: classes = [] } = useListClassesQuery();
   const { data: subjects = [] } = useListSubjectsQuery();
@@ -73,12 +67,16 @@ export function InlineAssignmentManager({ scope, isAdmin }: InlineAssignmentMana
   // Eligible options for the "other" dropdown, honouring NCDC cycle rules.
   const eligibleClasses = useMemo(() => {
     if (scope.kind !== "subject") return [];
-    return classes.filter((c) => scope.cycles.includes(LEVEL_CYCLE[c.level]));
+    return classes.filter((c) => {
+      const cycle = cycleForLevel(c.level);
+      return cycle != null && scope.cycles.includes(cycle);
+    });
   }, [classes, scope]);
 
   const eligibleSubjects = useMemo(() => {
     if (scope.kind !== "class") return [];
-    const cycle = LEVEL_CYCLE[scope.level];
+    const cycle = cycleForLevel(scope.level);
+    if (!cycle) return [];
     return subjects.filter((s) => s.is_active && s.ncdc_cycles.includes(cycle));
   }, [subjects, scope]);
 
@@ -150,7 +148,13 @@ export function InlineAssignmentManager({ scope, isAdmin }: InlineAssignmentMana
   }
 
   async function remove(id: string, label: string) {
-    if (!window.confirm(`Remove ${label}?`)) return;
+    const ok = await confirm({
+      title: "Remove assignment",
+      description: `Remove ${label}?`,
+      confirmLabel: "Remove",
+      tone: "danger",
+    });
+    if (!ok) return;
     try {
       await deleteAssignment(id).unwrap();
       toast("Assignment removed.", "success");
@@ -208,7 +212,7 @@ export function InlineAssignmentManager({ scope, isAdmin }: InlineAssignmentMana
                       onClick={() => startEdit(a)}
                       disabled={deleting || updating}
                       aria-label="Edit assignment"
-                      className="shrink-0 text-slate-300 opacity-0 transition hover:text-brand-700 group-hover:opacity-100 disabled:opacity-50"
+                      className="shrink-0 rounded p-1.5 text-slate-400 transition hover:bg-slate-100 hover:text-brand-700 md:opacity-0 md:group-hover:opacity-100 disabled:opacity-50"
                     >
                       <Icon name="edit" size={12} />
                     </button>
@@ -217,7 +221,7 @@ export function InlineAssignmentManager({ scope, isAdmin }: InlineAssignmentMana
                       onClick={() => void remove(a.id, `${a.teacher_name} · ${detail}`)}
                       disabled={deleting}
                       aria-label="Remove assignment"
-                      className="shrink-0 text-slate-300 opacity-0 transition hover:text-red-600 group-hover:opacity-100 disabled:opacity-50"
+                      className="shrink-0 rounded p-1.5 text-slate-400 transition hover:bg-slate-100 hover:text-red-600 md:opacity-0 md:group-hover:opacity-100 disabled:opacity-50"
                     >
                       <Icon name="x" size={12} />
                     </button>
@@ -231,7 +235,7 @@ export function InlineAssignmentManager({ scope, isAdmin }: InlineAssignmentMana
 
       {(isAdmin && adding) || editingId ? (
         <div className="mt-2 space-y-2 border-t border-slate-200/70 pt-2">
-          <div className="grid grid-cols-2 gap-1.5">
+          <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
             <Select
               value={teacherId}
               onChange={(e) => setTeacherId(e.target.value)}
@@ -302,7 +306,7 @@ export function InlineAssignmentManager({ scope, isAdmin }: InlineAssignmentMana
               Class teacher
             </label>
           </div>
-          <div className="flex justify-end gap-1.5">
+          <div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
             <Button size="sm" variant="ghost" onClick={resetForm}>
               Cancel
             </Button>

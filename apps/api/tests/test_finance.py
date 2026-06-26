@@ -320,3 +320,41 @@ async def test_refresh_unpaid_invoices_after_structure_change(client, admin_head
     invoices = await client.get("/api/v1/tenant/finance/invoices", headers=headers)
     row = next(i for i in invoices.json() if i["student_id"] == p4_student)
     assert row["total_ugx"] == 950_000
+
+
+async def test_finance_summary_class_filter_and_expected_totals(client, admin_headers):
+    headers, _ = await _finance_headers(client, admin_headers, "FIN6")
+    baby_class = await _create_class_level(client, headers, "BABY", "Baby Class")
+    p5_class = await _create_class_level(client, headers, "P5", "Primary Five")
+    await _enroll_student(client, headers, baby_class, residence="day")
+    await _enroll_student(client, headers, p5_class, residence="day")
+
+    structure = await _setup_structure(
+        client,
+        headers,
+        extra_lines=[
+            {"label": "Tuition", "amount_ugx": 300_000, "applies_to": "all"},
+            {"label": "Nursery kit", "amount_ugx": 50_000, "applies_to": "class_level", "class_level": "BABY"},
+        ],
+    )
+    assert structure["expected_invoiced_ugx"] == 650_000
+    assert structure["level_amounts_ugx"]["BABY"] == 350_000
+    assert structure["level_amounts_ugx"]["P5"] == 300_000
+
+    await client.post("/api/v1/tenant/finance/invoices/generate", headers=headers)
+
+    term_summary = await client.get("/api/v1/tenant/finance/summary", headers=headers)
+    assert term_summary.status_code == 200
+    assert term_summary.json()["expected_invoiced_ugx"] == 650_000
+    assert term_summary.json()["total_invoiced_ugx"] == 650_000
+
+    class_summary = await client.get(
+        f"/api/v1/tenant/finance/summary?class_id={baby_class}",
+        headers=headers,
+    )
+    assert class_summary.status_code == 200
+    body = class_summary.json()
+    assert body["registered_count"] == 1
+    assert body["invoiced_count"] == 1
+    assert body["total_invoiced_ugx"] == 350_000
+    assert body["expected_invoiced_ugx"] == 350_000

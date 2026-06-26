@@ -3,7 +3,7 @@
 import { createContext, useCallback, useContext, useState } from "react";
 import { cn } from "@/lib/cn";
 
-type ToastTone = "success" | "error" | "info";
+export type ToastTone = "success" | "error" | "info" | "warning";
 interface Toast {
   id: number;
   message: string;
@@ -27,6 +27,7 @@ const toneStyles: Record<ToastTone, string> = {
   success: "border-brand-200 bg-brand-50 text-brand-800",
   error: "border-red-200 bg-red-50 text-red-800",
   info: "border-slate-200 bg-white text-slate-800",
+  warning: "border-amber-200 bg-amber-50 text-amber-900",
 };
 
 export function ToastProvider({ children }: { children: React.ReactNode }) {

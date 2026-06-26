@@ -85,7 +85,8 @@ const PATHS: Record<string, React.ReactNode> = {
       <path d="M8 7h2M14 7h2M8 11h2M14 11h2M8 15h2M14 15h2" />
     </>
   ),
-  "chevron-down": <path d="M6 9l6 6 6-6" />,
+  "chevron-up": <path d="M6 15l6-6 6 6" />,
+  minus: <path d="M5 12h14" />,
   "chevron-right": <path d="M9 6l6 6-6 6" />,
   "chevron-left": <path d="M15 6l-6 6 6 6" />,
   "arrow-right": <path d="M5 12h14M13 6l6 6-6 6" />,
@@ -159,6 +160,11 @@ const PATHS: Record<string, React.ReactNode> = {
     <>
       <path d="M12 20h9" />
       <path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4z" />
+    </>
+  ),
+  grip: (
+    <>
+      <path d="M9 5h0M9 12h0M9 19h0M15 5h0M15 12h0M15 19h0" />
     </>
   ),
 };

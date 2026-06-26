@@ -31,7 +31,7 @@ from app.models.term_registration import (
     StudentTermRegistration,
 )
 from app.models.admission import AdmissionApplication
-from app.models.grading import AggregateDivision, GradeRange, GradingScale
+from app.models.grading import AggregateDivision, GradeRange, GradingScale, SubjectGradingAssignment
 from app.models.assessment import (
     AssessmentSet,
     CaSetInclusion,
@@ -84,6 +84,7 @@ __all__ = [
     "GradingScale",
     "GradeRange",
     "AggregateDivision",
+    "SubjectGradingAssignment",
     "AssessmentSet",
     "CaSetInclusion",
     "StudentAssessmentMark",

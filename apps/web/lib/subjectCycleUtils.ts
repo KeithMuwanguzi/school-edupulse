@@ -1,6 +1,7 @@
 import type { NcdcCycle, SubjectOut } from "@/lib/types";
 
 export const CYCLE_TOGGLE_OPTIONS: { value: NcdcCycle; label: string }[] = [
+  { value: "ecd", label: "Baby–Top" },
   { value: "cycle_1", label: "P1–P3" },
   { value: "cycle_2", label: "P4" },
   { value: "cycle_3", label: "P5–P7" },
@@ -20,6 +21,7 @@ export function subjectHasCycle(subject: SubjectOut, cycle: NcdcCycle): boolean 
 
 export function formatCycleLabels(cycles: NcdcCycle[]): string {
   const map: Record<NcdcCycle, string> = {
+    ecd: "Baby–Top",
     cycle_1: "P1–P3",
     cycle_2: "P4",
     cycle_3: "P5–P7",

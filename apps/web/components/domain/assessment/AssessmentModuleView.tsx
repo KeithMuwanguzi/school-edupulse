@@ -11,10 +11,12 @@ import { EmptyState } from "@/components/ui/EmptyState";
 import { ErrorBanner } from "@/components/ui/ErrorBanner";
 import { FormField } from "@/components/ui/FormField";
 import { Input } from "@/components/ui/Input";
+import { PageToolbar, PageToolbarGroup } from "@/components/ui/PageToolbar";
 import { Select } from "@/components/ui/Select";
 import { PageLoader } from "@/components/ui/Spinner";
 import { Table, TBody, TD, TH, THead, TR } from "@/components/ui/Table";
 import { useToast } from "@/components/ui/Toast";
+import { useConfirm } from "@/components/ui/Dialog";
 import { parseError } from "@/lib/apiError";
 import type { AssessmentSetOut, MarkEntryStudentRow } from "@/lib/types";
 import {
@@ -61,6 +63,7 @@ function SummaryStat({ label, value }: { label: string; value: string }) {
 
 function AssessmentSetRow({ set }: { set: AssessmentSetOut }) {
   const { toast } = useToast();
+  const confirm = useConfirm();
   const [openSet] = useOpenAssessmentSetMutation();
   const [closeSet] = useCloseAssessmentSetMutation();
   const [updateSet, { isLoading: saving }] = useUpdateAssessmentSetMutation();
@@ -90,7 +93,13 @@ function AssessmentSetRow({ set }: { set: AssessmentSetOut }) {
   }
 
   async function remove() {
-    if (!window.confirm(`Delete the "${set.name}" set? This removes its marks too.`)) return;
+    const ok = await confirm({
+      title: "Delete assessment set",
+      description: `Delete the "${set.name}" set? All marks in this set will be removed.`,
+      confirmLabel: "Delete set",
+      tone: "danger",
+    });
+    if (!ok) return;
     await run(() => deleteSet(set.id).unwrap(), "Set deleted.");
   }
 
@@ -145,6 +154,94 @@ function AssessmentSetRow({ set }: { set: AssessmentSetOut }) {
         </div>
       </TD>
     </TR>
+  );
+}
+
+function AssessmentSetMobileCard({ set }: { set: AssessmentSetOut }) {
+  const { toast } = useToast();
+  const confirm = useConfirm();
+  const [openSet] = useOpenAssessmentSetMutation();
+  const [closeSet] = useCloseAssessmentSetMutation();
+  const [updateSet, { isLoading: saving }] = useUpdateAssessmentSetMutation();
+  const [deleteSet] = useDeleteAssessmentSetMutation();
+  const [editing, setEditing] = useState(false);
+  const [name, setName] = useState(set.name);
+
+  async function run(action: () => Promise<unknown>, ok: string) {
+    try {
+      await action();
+      toast(ok, "success");
+    } catch (err) {
+      const p = parseError(err);
+      toast(p.message, "error", p.requestId);
+    }
+  }
+
+  async function rename() {
+    if (!name.trim()) {
+      toast("Name is required.", "error");
+      return;
+    }
+    await run(async () => {
+      await updateSet({ setId: set.id, body: { name: name.trim() } }).unwrap();
+      setEditing(false);
+    }, "Set renamed.");
+  }
+
+  async function remove() {
+    const ok = await confirm({
+      title: "Delete assessment set",
+      description: `Delete the "${set.name}" set? All marks in this set will be removed.`,
+      confirmLabel: "Delete set",
+      tone: "danger",
+    });
+    if (!ok) return;
+    await run(() => deleteSet(set.id).unwrap(), "Set deleted.");
+  }
+
+  return (
+    <div className="rounded-lg border border-slate-200 bg-white p-3">
+      {editing ? (
+        <div className="space-y-2">
+          <Input value={name} onChange={(e) => setName(e.target.value)} className={compactControl} />
+          <div className="flex flex-col gap-2 sm:flex-row">
+            <Button size="sm" variant="secondary" loading={saving} className="w-full sm:w-auto" onClick={() => void rename()}>
+              Save
+            </Button>
+            <Button size="sm" variant="ghost" className="w-full sm:w-auto" onClick={() => { setName(set.name); setEditing(false); }}>
+              Cancel
+            </Button>
+          </div>
+        </div>
+      ) : (
+        <>
+          <div className="flex items-start justify-between gap-2">
+            <div>
+              <p className="text-[13px] font-medium text-slate-900">{set.name}</p>
+              <p className="mt-0.5 text-[11px] text-slate-500">{set.marks_entered} marks entered</p>
+            </div>
+            <Badge tone={STATUS_TONE[set.entry_status] ?? "neutral"}>{set.entry_status}</Badge>
+          </div>
+          <div className="mt-3 flex flex-col gap-1.5 sm:flex-row sm:flex-wrap">
+            {set.entry_status === "open" ? (
+              <Button size="sm" variant="ghost" className="w-full sm:w-auto" onClick={() => void run(() => closeSet(set.id).unwrap(), "Set closed.")}>
+                Close
+              </Button>
+            ) : (
+              <Button size="sm" variant="ghost" className="w-full sm:w-auto" onClick={() => void run(() => openSet(set.id).unwrap(), "Set opened for entry.")}>
+                Open entry
+              </Button>
+            )}
+            <Button size="sm" variant="ghost" className="w-full sm:w-auto" onClick={() => setEditing(true)}>
+              Rename
+            </Button>
+            <Button size="sm" variant="ghost" className="w-full sm:w-auto" onClick={() => void remove()}>
+              Delete
+            </Button>
+          </div>
+        </>
+      )}
+    </div>
   );
 }
 
@@ -206,19 +303,25 @@ function AdminSetsPanel({ termId }: { termId: string }) {
       <Card>
         <CardHeader title="Term assessment sets" description="Create sets and open them when teachers should enter marks." />
         <CardBody className="space-y-3 py-3">
-          <form onSubmit={(e) => void handleCreate(e)} className="flex flex-wrap items-end gap-2">
-            <div className="min-w-[140px] flex-1">
+          <form onSubmit={(e) => void handleCreate(e)} className="flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-end">
+            <div className="min-w-0 flex-1 sm:min-w-[140px]">
               <FormField label="Set name">
                 <Input value={name} onChange={(e) => setName(e.target.value)} placeholder="e.g. CAT 1" className={compactControl} />
               </FormField>
             </div>
             <FormField label="Max mark">
-              <Input type="number" value={maxMark} onChange={(e) => setMaxMark(e.target.value)} className={`${compactControl} w-20`} />
+              <Input type="number" value={maxMark} onChange={(e) => setMaxMark(e.target.value)} className={`${compactControl} w-full sm:w-20`} />
             </FormField>
-            <Button size="sm" variant="secondary" loading={creating} type="submit">
+            <Button size="sm" variant="secondary" loading={creating} type="submit" className="w-full sm:w-auto">
               Add set
             </Button>
           </form>
+          <div className="space-y-2 md:hidden">
+            {sets.map((set) => (
+              <AssessmentSetMobileCard key={set.id} set={set} />
+            ))}
+          </div>
+          <div className="hidden md:block">
           <Table>
             <THead>
               <TR>
@@ -234,6 +337,7 @@ function AdminSetsPanel({ termId }: { termId: string }) {
               ))}
             </TBody>
           </Table>
+          </div>
         </CardBody>
       </Card>
 
@@ -323,36 +427,38 @@ function AdminCaOverview({ termId }: { termId: string }) {
         description="View recorded marks by set or computed continuous assessment by class."
       />
       <CardBody className="space-y-3 py-3">
-        <div className="flex flex-wrap items-end gap-3">
-          <FormField label="Class">
-            <Select value={classId} onChange={(e) => setClassId(e.target.value)} className={compactControl}>
-              <option value="">Select class</option>
-              {classes.map((c) => (
-                <option key={c.id} value={c.id}>
-                  {c.label ?? c.level}
-                </option>
-              ))}
-            </Select>
-          </FormField>
-          <FormField label="View">
-            <Select value={view} onChange={(e) => setView(e.target.value as typeof view)} className={compactControl}>
-              <option value="marks">Recorded marks</option>
-              <option value="ca">Computed CA</option>
-            </Select>
-          </FormField>
-          {view === "marks" && (
-            <FormField label="Assessment set">
-              <Select value={setId} onChange={(e) => setSetId(e.target.value)} className={compactControl}>
-                <option value="">Select set</option>
-                {sets.map((s) => (
-                  <option key={s.id} value={s.id}>
-                    {s.name} ({s.entry_status})
+        <PageToolbar className="sm:justify-start">
+          <PageToolbarGroup className="w-full sm:flex-1">
+            <FormField label="Class">
+              <Select value={classId} onChange={(e) => setClassId(e.target.value)} className={`${compactControl} w-full`}>
+                <option value="">Select class</option>
+                {classes.map((c) => (
+                  <option key={c.id} value={c.id}>
+                    {c.label ?? c.level}
                   </option>
                 ))}
               </Select>
             </FormField>
-          )}
-        </div>
+            <FormField label="View">
+              <Select value={view} onChange={(e) => setView(e.target.value as typeof view)} className={`${compactControl} w-full`}>
+                <option value="marks">Recorded marks</option>
+                <option value="ca">Computed CA</option>
+              </Select>
+            </FormField>
+            {view === "marks" && (
+              <FormField label="Assessment set">
+                <Select value={setId} onChange={(e) => setSetId(e.target.value)} className={`${compactControl} w-full`}>
+                  <option value="">Select set</option>
+                  {sets.map((s) => (
+                    <option key={s.id} value={s.id}>
+                      {s.name} ({s.entry_status})
+                    </option>
+                  ))}
+                </Select>
+              </FormField>
+            )}
+          </PageToolbarGroup>
+        </PageToolbar>
 
         {!classId && (
           <EmptyState title="Select a class" description="Choose a class to load assessment data." />
@@ -384,7 +490,26 @@ function AdminCaOverview({ termId }: { termId: string }) {
                 description={`No marks found for ${marksGrid.set_name} in this class yet.`}
               />
             ) : (
-              <div className="overflow-x-auto">
+              <>
+                <p className="text-[12px] text-slate-500 md:hidden">
+                  {marksGrid.set_name} · {marksGrid.scoring_mode === "competency" ? "Competence levels" : `Scores / ${marksGrid.max_mark}`}
+                </p>
+                <div className="space-y-2 md:hidden">
+                  {marksGrid.students.map((student) => (
+                    <div key={student.student_id} className="rounded-lg border border-slate-200 bg-white p-3">
+                      <p className="text-[13px] font-medium text-slate-900">{formatStudentFullName(student)}</p>
+                      <dl className="mt-2 space-y-1">
+                        {student.cells.map((cell) => (
+                          <div key={cell.subject_id} className="flex justify-between text-[11px]">
+                            <dt className="text-slate-500">{marksGrid.subjects.find((s) => s.subject_id === cell.subject_id)?.subject_code}</dt>
+                            <dd className="font-medium text-slate-800">{cell.display}</dd>
+                          </div>
+                        ))}
+                      </dl>
+                    </div>
+                  ))}
+                </div>
+                <div className="hidden overflow-x-auto md:block">
                 <p className="mb-2 text-[12px] text-slate-500">
                   {marksGrid.set_name} · {marksGrid.scoring_mode === "competency" ? "Competence levels" : `Scores / ${marksGrid.max_mark}`}
                 </p>
@@ -408,7 +533,8 @@ function AdminCaOverview({ termId }: { termId: string }) {
                     ))}
                   </TBody>
                 </Table>
-              </div>
+                </div>
+              </>
             )}
           </>
         )}
@@ -426,7 +552,29 @@ function AdminCaOverview({ termId }: { termId: string }) {
                 description="Enter marks in an open assessment set, or configure CA inclusions above."
               />
             ) : (
-              <div className="overflow-x-auto">
+              <>
+                <div className="space-y-2 md:hidden">
+                  {computed.students.map((student) => (
+                    <div key={student.student_id} className="rounded-lg border border-slate-200 bg-white p-3">
+                      <div className="flex items-start justify-between gap-2">
+                        <p className="text-[13px] font-medium text-slate-900">{formatStudentFullName(student)}</p>
+                        <div className="text-right text-[11px] text-slate-500">
+                          <p>Avg {student.average_score ?? "—"}</p>
+                          <p>Div {student.division_label ?? "—"}</p>
+                        </div>
+                      </div>
+                      <dl className="mt-2 space-y-1">
+                        {student.subjects.map((sub) => (
+                          <div key={sub.subject_id} className="flex justify-between text-[11px]">
+                            <dt className="text-slate-500">{sub.subject_code}{sub.is_core ? " *" : ""}</dt>
+                            <dd className="font-medium text-slate-800">{formatCaCell(sub)}</dd>
+                          </div>
+                        ))}
+                      </dl>
+                    </div>
+                  ))}
+                </div>
+                <div className="hidden overflow-x-auto md:block">
                 <p className="mb-2 text-[12px] text-slate-500">
                   Continuous assessment per subject (score and grade), with term aggregate and division.
                 </p>
@@ -460,7 +608,8 @@ function AdminCaOverview({ termId }: { termId: string }) {
                   </TBody>
                 </Table>
                 <p className="mt-2 text-[11px] text-slate-400">* core subjects counted toward the aggregate.</p>
-              </div>
+                </div>
+              </>
             )}
           </>
         )}
@@ -579,18 +728,19 @@ function TeacherMarkEntry({ termId }: { termId: string }) {
               <SettingsHint>This set is read-only — it may be closed or you lack assignment.</SettingsHint>
             )}
             {roster.can_edit && (
-              <div className="flex items-center justify-between">
+              <PageToolbar className="sm:justify-between">
                 <p className="text-[12px] text-slate-500">
                   {roster.students.length} onboarded pupil(s) in this class.
                 </p>
                 <Button
                   size="sm"
                   variant="ghost"
+                  className="w-full sm:w-auto"
                   onClick={() => setShowImport((v) => !v)}
                 >
                   {showImport ? "Hide import" : "Import from Excel/CSV"}
                 </Button>
-              </div>
+              </PageToolbar>
             )}
             {roster.can_edit && showImport && (
               <MarksImportSection
@@ -606,6 +756,53 @@ function TeacherMarkEntry({ termId }: { termId: string }) {
                 }}
               />
             )}
+            <div className="space-y-2 md:hidden">
+              {Object.values(draft).map((row) => (
+                <div key={row.student_id} className="rounded-lg border border-slate-200 bg-white p-3">
+                  <p className="mb-2 text-[13px] font-medium text-slate-900">{formatStudentFullName(row)}</p>
+                  {roster.scoring_mode === "competency" ? (
+                    <Select
+                      value={row.competence_level ?? ""}
+                      disabled={!roster.can_edit}
+                      onChange={(e) =>
+                        setDraft((prev) => ({
+                          ...prev,
+                          [row.student_id]: { ...row, competence_level: e.target.value || null },
+                        }))
+                      }
+                      className={`${compactControl} w-full`}
+                    >
+                      <option value="">—</option>
+                      {COMPETENCE_OPTIONS.map((o) => (
+                        <option key={o.value} value={o.value}>
+                          {o.label}
+                        </option>
+                      ))}
+                    </Select>
+                  ) : (
+                    <Input
+                      type="number"
+                      min={0}
+                      max={roster.max_mark}
+                      disabled={!roster.can_edit}
+                      value={row.score ?? ""}
+                      onChange={(e) =>
+                        setDraft((prev) => ({
+                          ...prev,
+                          [row.student_id]: {
+                            ...row,
+                            score: e.target.value === "" ? null : Number(e.target.value),
+                          },
+                        }))
+                      }
+                      className={`${compactControl} w-full`}
+                      placeholder={`Score / ${roster.max_mark}`}
+                    />
+                  )}
+                </div>
+              ))}
+            </div>
+            <div className="hidden md:block">
             <Table>
               <THead>
                 <TR>
@@ -661,8 +858,9 @@ function TeacherMarkEntry({ termId }: { termId: string }) {
                 ))}
               </TBody>
             </Table>
+            </div>
             {roster.can_edit && (
-              <Button size="sm" variant="secondary" loading={saving} onClick={() => void handleSave()}>
+              <Button size="sm" variant="secondary" loading={saving} className="w-full sm:w-auto" onClick={() => void handleSave()}>
                 Save marks
               </Button>
             )}

@@ -24,14 +24,18 @@ from app.schemas.school import (
     SchoolProfile,
     SchoolUpdate,
 )
+from app.schemas.tenant_user import PasswordResetResponse
 from app.services import (
     cache_service,
+    email_service,
     idempotency_service,
     onboarding_service,
     school_badge_service,
     subscription_service,
+    tenant_user_service,
 )
 from app.services.audit_service import record_audit
+from app.services.school_email_service import assert_school_email_available
 
 router = APIRouter(prefix="/platform/schools", tags=["platform:schools"])
 
@@ -137,6 +141,20 @@ async def onboard(
         )
     await session.commit()
     await onboarding_service.warm_caches(result.school_code, result.tenant_id, result.modules)
+
+    recipient = str(body.email).strip()
+    if recipient:
+        await email_service.send_portal_credentials(
+            to=recipient,
+            school_name=body.name,
+            username=result.admin_user.username,
+            password=body.admin_user.password,
+            intro=(
+                f"Welcome to SkulPulse. Your school portal for {body.name} has been "
+                "provisioned with the credentials below."
+            ),
+        )
+
     return JSONResponse(out, status_code=201)
 
 
@@ -179,6 +197,10 @@ async def update_school(
         raise StaleVersionError("This school was modified by someone else. Reload and retry.")
 
     changes = body.model_dump(exclude_none=True, exclude={"version", "status"})
+    if "email" in changes and changes["email"] is not None:
+        changes["email"] = await assert_school_email_available(
+            session, changes["email"], exclude_school_id=school.id
+        )
     before = {k: getattr(school, k) for k in changes}
     for field, value in changes.items():
         setattr(school, field, value)
@@ -343,3 +365,135 @@ async def list_users(
         )
         for (u, role_key) in users
     ]
+
+
+@router.post(
+    "/{tenant_id}/users/{user_id}/password-reset",
+    response_model=PasswordResetResponse,
+)
+async def reset_user_password(
+    tenant_id: UUID,
+    user_id: UUID,
+    request: Request,
+    principal: Principal = Depends(require_platform_admin),
+    session: AsyncSession = Depends(get_platform_session),
+) -> PasswordResetResponse:
+    repo = PlatformSchoolRepository(session)
+    found = await repo.get_detail(tenant_id)
+    if found is None or found[1] is None:
+        raise NotFoundError("School not found.")
+    _tenant, school = found
+
+    result = await tenant_user_service.reset_user_password(
+        session,
+        tenant_id,
+        user_id,
+        school_name=school.name,
+        reset_by="SkulPulse platform administrator",
+    )
+    await record_audit(
+        session,
+        actor_type=ActorType.platform_admin,
+        actor_id=principal.user_id,
+        tenant_id=tenant_id,
+        action="user.password_reset",
+        resource_type="tenant_user",
+        resource_id=user_id,
+        metadata={"via": "platform"},
+        ip_address=_client_ip(request),
+    )
+    await session.commit()
+    return result
+
+
+@router.post(
+    "/{tenant_id}/admin/reset-credentials",
+    response_model=PasswordResetResponse,
+)
+async def reset_admin_credentials(
+    tenant_id: UUID,
+    request: Request,
+    principal: Principal = Depends(require_platform_admin),
+    session: AsyncSession = Depends(get_platform_session),
+) -> PasswordResetResponse:
+    from sqlalchemy import select
+
+    from app.models.user import Role, TenantUser
+
+    repo = PlatformSchoolRepository(session)
+    found = await repo.get_detail(tenant_id)
+    if found is None or found[1] is None:
+        raise NotFoundError("School not found.")
+    tenant, school = found
+
+    admin_row = await session.execute(
+        select(TenantUser, Role.role_key)
+        .join(Role, Role.id == TenantUser.role_id)
+        .where(
+            TenantUser.tenant_id == tenant_id,
+            TenantUser.deleted_at.is_(None),
+            Role.role_key == "school_admin",
+        )
+        .order_by(TenantUser.created_at)
+        .limit(1)
+    )
+    row = admin_row.first()
+    if row is None:
+        raise NotFoundError("School administrator account not found.")
+    admin, _ = row
+
+    result = await tenant_user_service.reset_user_password(
+        session,
+        tenant_id,
+        admin.id,
+        school_name=school.name,
+        reset_by="SkulPulse platform administrator",
+        notify=False,
+    )
+    temp = result.temporary_password
+    if temp is None:
+        raise NotFoundError("Password reset failed.")
+
+    recipient = (school.email or admin.email or "").strip()
+    email_sent = False
+    if recipient:
+        email_sent = await email_service.send_portal_credentials(
+            to=recipient,
+            school_name=school.name,
+            username=f"{admin.login_id}@{tenant.school_code}",
+            password=temp,
+            intro=(
+                f"Your SkulPulse administrator credentials for {school.name} have been "
+                "reset. Sign in with the details below and choose a new password."
+            ),
+        )
+
+    await record_audit(
+        session,
+        actor_type=ActorType.platform_admin,
+        actor_id=principal.user_id,
+        tenant_id=tenant_id,
+        action="school.admin_credentials_reset",
+        resource_type="tenant_user",
+        resource_id=admin.id,
+        metadata={"email_sent": email_sent, "recipient": recipient or None},
+        ip_address=_client_ip(request),
+    )
+    await session.commit()
+
+    if email_sent:
+        return PasswordResetResponse(
+            message=f"New administrator credentials emailed to {recipient}.",
+            temporary_password=None,
+            email_sent=True,
+            email_recipient=recipient,
+        )
+    return PasswordResetResponse(
+        message=(
+            "No school email on file — share this temporary password securely. "
+            "The administrator must change it after signing in."
+        ),
+        temporary_password=temp,
+        email_sent=False,
+        email_recipient=None,
+    )

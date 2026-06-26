@@ -31,8 +31,9 @@ export function SettingsFilterPills({
   onChange: (id: string) => void;
 }) {
   return (
-    <div className="inline-flex items-center gap-0.5 rounded-lg border border-slate-200/80 bg-slate-100/70 p-0.5">
-      {options.map((opt) => (
+    <div className="-mx-1 overflow-x-auto px-1 pb-0.5 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+      <div className="inline-flex min-w-max items-center gap-0.5 rounded-lg border border-slate-200/80 bg-slate-100/70 p-0.5">
+        {options.map((opt) => (
         <button
           key={opt.id}
           type="button"
@@ -47,6 +48,7 @@ export function SettingsFilterPills({
           {opt.label}
         </button>
       ))}
+      </div>
     </div>
   );
 }

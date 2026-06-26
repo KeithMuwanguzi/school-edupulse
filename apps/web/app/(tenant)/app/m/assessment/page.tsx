@@ -1,5 +1,6 @@
 "use client";
 
+import { AssessmentModuleShell } from "@/components/domain/assessment/AssessmentModuleShell";
 import { AssessmentModuleView } from "@/components/domain/assessment/AssessmentModuleView";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { useAppSelector } from "@/store/hooks";
@@ -17,5 +18,9 @@ export default function AssessmentPage() {
     );
   }
 
-  return <AssessmentModuleView />;
+  return (
+    <AssessmentModuleShell>
+      <AssessmentModuleView />
+    </AssessmentModuleShell>
+  );
 }

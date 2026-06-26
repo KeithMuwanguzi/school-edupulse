@@ -118,3 +118,23 @@ async def test_patch_profile_and_optimistic_lock(client, admin_headers):
 async def test_onboard_requires_admin(client):
     resp = await client.post("/api/v1/platform/schools", json=sample_onboard_payload("NOAUTH1"))
     assert resp.status_code == 401
+
+
+async def test_onboard_rejects_duplicate_email(client, admin_headers):
+    first = sample_onboard_payload("EML1")
+    assert (
+        await client.post("/api/v1/platform/schools", json=first, headers=admin_headers)
+    ).status_code == 201
+
+    duplicate = sample_onboard_payload("EML2")
+    duplicate["email"] = first["email"]
+    resp = await client.post("/api/v1/platform/schools", json=duplicate, headers=admin_headers)
+    assert resp.status_code == 409
+    assert resp.json()["code"] == "DUPLICATE_SCHOOL_EMAIL"
+
+
+async def test_onboard_requires_email(client, admin_headers):
+    payload = sample_onboard_payload("NOEM")
+    del payload["email"]
+    resp = await client.post("/api/v1/platform/schools", json=payload, headers=admin_headers)
+    assert resp.status_code == 422

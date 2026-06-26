@@ -11,6 +11,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.context import get_request_id
 from app.models.audit import AuditLog
 from app.models.enums import ActorType
+from app.services import platform_audit_file_service
 
 
 async def record_audit(
@@ -27,17 +28,34 @@ async def record_audit(
     user_agent: str | None = None,
 ) -> None:
     """Add an audit row to the given session (committed by the caller's unit of work)."""
+    actor_type_value = actor_type.value if isinstance(actor_type, ActorType) else actor_type
+    request_id = get_request_id()
+    stored_actor_type = (
+        actor_type if isinstance(actor_type, ActorType) else ActorType(actor_type_value)
+    )
     session.add(
         AuditLog(
-            actor_type=actor_type.value if isinstance(actor_type, ActorType) else actor_type,
+            actor_type=stored_actor_type,
             actor_id=actor_id,
             tenant_id=tenant_id,
             action=action,
             resource_type=resource_type,
             resource_id=resource_id,
-            request_id=get_request_id(),
+            request_id=request_id,
             audit_metadata=metadata,
             ip_address=ip_address,
             user_agent=user_agent,
         )
+    )
+    platform_audit_file_service.append_audit_event(
+        actor_type=actor_type_value,
+        actor_id=actor_id,
+        tenant_id=tenant_id,
+        action=action,
+        resource_type=resource_type,
+        resource_id=resource_id,
+        request_id=request_id,
+        metadata=metadata,
+        ip_address=ip_address,
+        user_agent=user_agent,
     )

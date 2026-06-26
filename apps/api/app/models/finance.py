@@ -70,7 +70,7 @@ class FeeStructureLine(Base, TimestampMixin):
     label: Mapped[str] = mapped_column(String(120), nullable=False)
     amount_ugx: Mapped[int] = mapped_column(Integer, nullable=False)
     applies_to: Mapped[str] = mapped_column(String(20), nullable=False, default="all")
-    class_level: Mapped[str | None] = mapped_column(String(3), nullable=True)
+    class_level: Mapped[str | None] = mapped_column(String(10), nullable=True)
     sort_order: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
     is_optional: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
 

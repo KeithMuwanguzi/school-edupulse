@@ -7,6 +7,8 @@ import { EmptyState } from "@/components/ui/EmptyState";
 import { ErrorBanner } from "@/components/ui/ErrorBanner";
 import { Icon } from "@/components/ui/Icon";
 import { Input } from "@/components/ui/Input";
+import { PageToolbar } from "@/components/ui/PageToolbar";
+import { Select } from "@/components/ui/Select";
 import { RefreshButton, refreshQueries } from "@/components/ui/RefreshButton";
 import { PageLoader } from "@/components/ui/Spinner";
 import type { AttendanceRollOut, RosterScope } from "@/lib/types";
@@ -16,7 +18,7 @@ import {
   useAttendanceRollQuery,
   useAttendanceSummaryQuery,
 } from "@/store/api/skulpulseApi";
-import { AttendanceClassNav } from "./AttendanceClassNav";
+import { AttendanceClassPicker } from "./AttendanceClassPicker";
 import { AttendanceRollList, type LocalRollRow } from "./AttendanceRollList";
 import {
   attendanceScopeLabel,
@@ -99,7 +101,7 @@ export function AdminAttendanceSection() {
 
   return (
     <div className="space-y-4 animate-fade-rise">
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+      <div className="flex flex-col gap-3">
         {summary && summary.total_enrolled > 0 ? (
           <SettingsStatRow
             items={[
@@ -114,22 +116,20 @@ export function AdminAttendanceSection() {
               { label: "Late", value: summary.late },
             ]}
           />
-        ) : (
-          <span />
-        )}
-        <div className="flex items-center gap-2">
-          <div className="relative">
+        ) : null}
+        <PageToolbar>
+          <div className="relative w-full sm:w-auto">
             <Icon
               name="calendar"
               size={13}
-              className="pointer-events-none absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400"
+              className="pointer-events-none absolute left-2.5 top-1/2 z-10 -translate-y-1/2 text-slate-400"
             />
             <Input
               type="date"
               value={date}
               max={todayIso()}
               onChange={(e) => setDate(e.target.value)}
-              className="w-40 pl-8"
+              className="w-full pl-8 sm:w-40"
               aria-label="Attendance date"
             />
           </div>
@@ -138,7 +138,7 @@ export function AdminAttendanceSection() {
             isRefreshing={fetchingSummary || fetchingDay || fetchingRoll}
             label="Refresh attendance"
           />
-        </div>
+        </PageToolbar>
       </div>
 
       {summaryLoading ? (
@@ -154,8 +154,8 @@ export function AdminAttendanceSection() {
       ) : scope ? (
         <div className="flex flex-col gap-4 lg:flex-row">
           <div className="w-full shrink-0 lg:w-48">
-            <Card className="p-1.5 lg:sticky lg:top-2">
-              <AttendanceClassNav summary={summary} scope={scope} onChange={setScope} />
+            <Card className="p-2 lg:sticky lg:top-2">
+              <AttendanceClassPicker summary={summary} scope={scope} onChange={setScope} />
             </Card>
           </div>
 
@@ -170,7 +170,23 @@ export function AdminAttendanceSection() {
               />
             ) : (
               <>
-                <Card className="divide-y divide-slate-100">
+                <div className="lg:hidden">
+                  <Select
+                    value={selectedSlotId ?? ""}
+                    onChange={(e) => setSelectedSlotId(e.target.value || null)}
+                    className="w-full text-[12px]"
+                    aria-label="Lesson period"
+                  >
+                    {lessons.map((lesson) => (
+                      <option key={lesson.slot_id} value={lesson.slot_id}>
+                        {fmtTime(lesson.starts_at)} · {lesson.subject_code} · {lesson.teacher_name}
+                        {lesson.recorded ? ` · P${lesson.present}` : ""}
+                      </option>
+                    ))}
+                  </Select>
+                </div>
+
+                <Card className="hidden divide-y divide-slate-100 lg:block">
                   {lessons.map((lesson) => {
                     const active = lesson.slot_id === selectedSlotId;
                     return (

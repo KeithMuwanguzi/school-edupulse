@@ -11,23 +11,33 @@ import {
   recommendedForCycle,
   type NcdcSubjectSuggestion,
 } from "@/lib/ncdcSubjectCatalog";
-import { subjectByCode, subjectHasCycle } from "@/lib/subjectCycleUtils";
+import { formatCycleLabels, subjectByCode, subjectHasCycle } from "@/lib/subjectCycleUtils";
 import type { NcdcCycle, SubjectOut } from "@/lib/types";
 
 const CUSTOM_VALUE = "__custom__";
 const compactControl = "h-7 text-[12px]";
 
 const CYCLE_OPTIONS: { value: NcdcCycle; label: string }[] = [
+  { value: "ecd", label: "Baby–Top" },
   { value: "cycle_1", label: "P1–P3" },
   { value: "cycle_2", label: "P4" },
   { value: "cycle_3", label: "P5–P7" },
 ];
 
-function formatOption(item: NcdcSubjectSuggestion, suffix?: string): string {
+type CatalogPickState = "new" | "extend" | "added";
+
+interface CatalogPick {
+  item: NcdcSubjectSuggestion;
+  state: CatalogPickState;
+}
+
+function formatOption(item: NcdcSubjectSuggestion, state: CatalogPickState, cycleShort: string): string {
   const tags = [item.code];
   if (item.ple) tags.push("PLE");
   const base = `${item.name} (${tags.join(" · ")})`;
-  return suffix ? `${base} — ${suffix}` : base;
+  if (state === "added") return `${base} — in ${cycleShort}`;
+  if (state === "extend") return `${base} — add to ${cycleShort}`;
+  return base;
 }
 
 const CORE_PREFIXES = ["ENG", "MTC", "MATH", "SCI", "SST", "SOCIAL"];
@@ -62,26 +72,23 @@ export function SubjectAddPanel({
   const cycleMeta = NCDC_CYCLE_LABELS[cycle];
   const isCustom = pick === CUSTOM_VALUE;
 
-  const { recommendedAvailable, otherAvailable, extendable, complete } = useMemo(() => {
+  const { recommended, other } = useMemo(() => {
     const recCodes = new Set(recommendedForCycle(cycle).map((s) => s.code));
-    const recommendedAvailable: NcdcSubjectSuggestion[] = [];
-    const otherAvailable: NcdcSubjectSuggestion[] = [];
-    const extendable: NcdcSubjectSuggestion[] = [];
-    const complete: NcdcSubjectSuggestion[] = [];
+    const recommended: CatalogPick[] = [];
+    const other: CatalogPick[] = [];
 
     for (const item of catalogForCycle(cycle)) {
       const existing = subjectByCode(subjects, item.code);
-      if (!existing) {
-        if (recCodes.has(item.code)) recommendedAvailable.push(item);
-        else otherAvailable.push(item);
-      } else if (subjectHasCycle(existing, cycle)) {
-        complete.push(item);
-      } else {
-        extendable.push(item);
+      let state: CatalogPickState = "new";
+      if (existing) {
+        state = subjectHasCycle(existing, cycle) ? "added" : "extend";
       }
+      const entry = { item, state };
+      if (recCodes.has(item.code)) recommended.push(entry);
+      else other.push(entry);
     }
 
-    return { recommendedAvailable, otherAvailable, extendable, complete };
+    return { recommended, other };
   }, [cycle, subjects]);
 
   const missingRecommended = useMemo(
@@ -99,6 +106,13 @@ export function SubjectAddPanel({
   );
 
   const pickedExisting = pickedItem ? subjectByCode(subjects, pickedItem.code) : undefined;
+  const pickedState: CatalogPickState | null = pickedItem
+    ? pickedExisting
+      ? subjectHasCycle(pickedExisting, cycle)
+        ? "added"
+        : "extend"
+      : "new"
+    : null;
 
   useEffect(() => {
     setPick("");
@@ -129,7 +143,7 @@ export function SubjectAddPanel({
       return;
     }
 
-    if (!pickedItem) return;
+    if (!pickedItem || pickedState === "added") return;
     await onAdd({
       code: pickedItem.code,
       name: pickedExisting?.name ?? pickedItem.name,
@@ -147,23 +161,37 @@ export function SubjectAddPanel({
     ? customCode.trim().length >= 2 &&
       customName.trim().length >= 2 &&
       !(existingCustom && subjectHasCycle(existingCustom, cycle))
-    : Boolean(pickedItem) &&
-      (!pickedExisting || !subjectHasCycle(pickedExisting, cycle));
+    : Boolean(pickedItem) && pickedState !== "added" && pickedState !== null;
 
   const contextHint =
-    pickedItem && !isCustom && pickedExisting
-      ? `${pickedExisting.code} will also apply to ${cycleMeta.short}.`
-      : pickedItem && !isCustom && !pickedExisting
+    pickedItem && !isCustom && pickedState === "extend" && pickedExisting
+      ? `${pickedExisting.code} is in ${formatCycleLabels(pickedExisting.ncdc_cycles)} — will also apply to ${cycleMeta.short}.`
+      : pickedItem && !isCustom && pickedState === "new"
         ? `New ${pickedItem.code} for ${cycleMeta.short}.`
-        : existingCustom &&
-            !subjectHasCycle(existingCustom, cycle) &&
-            isCustom &&
-            customCode.trim()
-          ? `${existingCustom.code} will also apply to ${cycleMeta.short}.`
-          : null;
+        : pickedItem && !isCustom && pickedState === "added"
+          ? `Already in ${cycleMeta.short}. Switch cycle to add this code elsewhere.`
+          : existingCustom &&
+              !subjectHasCycle(existingCustom, cycle) &&
+              isCustom &&
+              customCode.trim()
+            ? `${existingCustom.code} will also apply to ${cycleMeta.short}.`
+            : null;
+
+  function renderCatalogOption({ item, state }: CatalogPick) {
+    return (
+      <option key={item.code} value={item.code} disabled={state === "added"}>
+        {formatOption(item, state, cycleMeta.short)}
+      </option>
+    );
+  }
 
   return (
     <div className="space-y-2.5">
+      <p className="text-[10.5px] text-slate-500">
+        Subjects stay in the list after you add them — switch cycle to extend ENG, SST, and others
+        across Baby–Top through P7.
+      </p>
+
       <div className="grid gap-2.5 sm:grid-cols-[7rem_1fr]">
         <FormField label="Cycle" required>
           <Select
@@ -187,40 +215,14 @@ export function SubjectAddPanel({
             className={compactControl}
           >
             <option value="">Select…</option>
-            {recommendedAvailable.length > 0 && (
+            {recommended.length > 0 && (
               <optgroup label={`Recommended · ${cycleMeta.short}`}>
-                {recommendedAvailable.map((item) => (
-                  <option key={item.code} value={item.code}>
-                    {formatOption(item)}
-                  </option>
-                ))}
+                {recommended.map(renderCatalogOption)}
               </optgroup>
             )}
-            {extendable.length > 0 && (
-              <optgroup label={`Already in catalogue · add to ${cycleMeta.short}`}>
-                {extendable.map((item) => (
-                  <option key={`ext-${item.code}`} value={item.code}>
-                    {formatOption(item, `also in ${cycleMeta.short}`)}
-                  </option>
-                ))}
-              </optgroup>
-            )}
-            {otherAvailable.length > 0 && (
+            {other.length > 0 && (
               <optgroup label="Other">
-                {otherAvailable.map((item) => (
-                  <option key={item.code} value={item.code}>
-                    {formatOption(item)}
-                  </option>
-                ))}
-              </optgroup>
-            )}
-            {complete.length > 0 && (
-              <optgroup label={`In ${cycleMeta.short}`}>
-                {complete.map((item) => (
-                  <option key={`done-${item.code}`} value={item.code} disabled>
-                    {formatOption(item)} — added
-                  </option>
-                ))}
+                {other.map(renderCatalogOption)}
               </optgroup>
             )}
             <optgroup label="Manual">
@@ -272,7 +274,7 @@ export function SubjectAddPanel({
 
       <div className="flex flex-wrap items-center gap-2">
         <Button size="sm" loading={creating} disabled={!canSubmit} onClick={() => void submit()}>
-          {pickedExisting && !isCustom ? "Add to cycle" : "Add"}
+          {pickedState === "extend" && !isCustom ? "Add to cycle" : "Add"}
         </Button>
         {missingRecommended.length > 0 && (
           <Button
@@ -293,3 +295,5 @@ export function SubjectAddPanel({
     </div>
   );
 }
+
+export { defaultIsCore };

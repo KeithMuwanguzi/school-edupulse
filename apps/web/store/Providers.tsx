@@ -8,6 +8,7 @@ import { API_URL } from "@/lib/apiConfig";
 import { tokenStorage } from "@/lib/tokenStorage";
 import type { Me, TokenResponse } from "@/lib/types";
 import { ToastProvider } from "@/components/ui/Toast";
+import { DialogProvider } from "@/components/ui/Dialog";
 
 /** Restore a session on load by rotating the stored refresh token (§7.3). */
 let bootstrapInFlight: Promise<void> | null = null;
@@ -56,7 +57,9 @@ export function Providers({ children }: { children: React.ReactNode }) {
 
   return (
     <Provider store={store}>
-      <ToastProvider>{ready ? children : null}</ToastProvider>
+      <DialogProvider>
+        <ToastProvider>{ready ? children : null}</ToastProvider>
+      </DialogProvider>
     </Provider>
   );
 }

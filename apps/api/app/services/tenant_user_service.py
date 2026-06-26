@@ -14,13 +14,13 @@ from app.models.enums import UserStatus, UserType
 from app.models.platform import Tenant
 from app.models.user import RefreshToken, Role, TenantUser
 from app.schemas.tenant_user import (
-    PasswordResetStubResponse,
+    PasswordResetResponse,
     RoleOption,
     TenantUserCreate,
     TenantUserOut,
     TenantUserUpdate,
 )
-from app.services import subscription_service
+from app.services import email_service, subscription_service
 
 ASSIGNABLE_ROLES = frozenset(
     {"school_admin", "deputy_head", "teacher", "bursar", "parent"}
@@ -75,6 +75,7 @@ def _out(user: TenantUser, role_key: str, school_code: str) -> TenantUserOut:
         status=user.status.value,
         email=user.email,
         allowed_modules=user.allowed_modules,
+        must_change_password=user.must_change_password,
         last_login_at=user.last_login_at,
         created_at=user.created_at,
     )
@@ -147,6 +148,7 @@ async def create_user(
         name=body.name.strip(),
         status=UserStatus.active,
         allowed_modules=allowed_modules,
+        must_change_password=True,
     )
     session.add(user)
     await session.flush()
@@ -207,9 +209,92 @@ async def update_user(
     return _out(user, current_role, school_code)
 
 
+async def reset_user_password(
+    session: AsyncSession,
+    tenant_id: UUID,
+    user_id: UUID,
+    *,
+    school_name: str | None = None,
+    reset_by: str = "School administrator",
+    notify: bool = True,
+) -> PasswordResetResponse:
+    school_code = await _school_code(session, tenant_id)
+    row = await session.execute(
+        select(TenantUser, Role.role_key)
+        .join(Role, Role.id == TenantUser.role_id)
+        .where(
+            TenantUser.id == user_id,
+            TenantUser.tenant_id == tenant_id,
+            TenantUser.deleted_at.is_(None),
+        )
+    )
+    found = row.first()
+    if found is None:
+        raise NotFoundError("User not found.")
+    user, _role_key = found
+
+    if user.status == UserStatus.disabled:
+        raise ValidationError("Cannot reset password for a disabled account.")
+
+    temp = _temp_password()
+    user.password_hash = hash_password(temp)
+    user.must_change_password = True
+    await _revoke_tokens(session, user.id)
+
+    username = f"{user.login_id}@{school_code}"
+    email_sent = False
+    recipient: str | None = None
+    if notify and user.email:
+        email_sent = await email_service.send_password_reset_notice(
+            to=user.email,
+            school_name=school_name or school_code,
+            username=username,
+            password=temp,
+            reset_by=reset_by,
+        )
+        if email_sent:
+            recipient = user.email
+
+    if email_sent:
+        return PasswordResetResponse(
+            message="A temporary password was emailed to the account holder.",
+            temporary_password=None,
+            email_sent=True,
+            email_recipient=recipient,
+        )
+
+    return PasswordResetResponse(
+        message=(
+            "Share this temporary password securely. "
+            "The user must change it after signing in."
+        ),
+        temporary_password=temp,
+        email_sent=False,
+        email_recipient=None,
+    )
+
+
 async def reset_password_stub(
     session: AsyncSession, tenant_id: UUID, user_id: UUID
-) -> PasswordResetStubResponse:
+) -> PasswordResetResponse:
+    return await reset_user_password(
+        session,
+        tenant_id,
+        user_id,
+        reset_by="School administrator",
+    )
+
+
+async def change_password(
+    session: AsyncSession,
+    tenant_id: UUID,
+    user_id: UUID,
+    *,
+    current_password: str,
+    new_password: str,
+) -> None:
+    from app.core.security import verify_password
+
     user = await session.scalar(
         select(TenantUser).where(
             TenantUser.id == user_id,
@@ -217,19 +302,18 @@ async def reset_password_stub(
             TenantUser.deleted_at.is_(None),
         )
     )
-    if user is None:
+    if user is None or user.status != UserStatus.active:
         raise NotFoundError("User not found.")
-    if user.status == UserStatus.disabled:
-        raise ValidationError("Cannot reset password for a disabled account.")
+    if not verify_password(current_password, user.password_hash):
+        raise ValidationError("Current password is incorrect.")
+    if len(new_password) < 8:
+        raise ValidationError("New password must be at least 8 characters.")
+    if verify_password(new_password, user.password_hash):
+        raise ValidationError("New password must be different from the current password.")
 
-    temp = _temp_password()
-    user.password_hash = hash_password(temp)
+    user.password_hash = hash_password(new_password)
+    user.must_change_password = False
     await _revoke_tokens(session, user.id)
-
-    return PasswordResetStubResponse(
-        message="Share this temporary password securely. The user should change it after signing in.",
-        temporary_password=temp,
-    )
 
 
 async def _revoke_tokens(session: AsyncSession, user_id: UUID) -> None:

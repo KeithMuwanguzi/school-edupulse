@@ -40,9 +40,9 @@ export function SchoolBadgeUpload({
 
   return (
     <div className="space-y-3">
-      <div className="flex flex-wrap items-center gap-4">
+      <div className="flex flex-col gap-4 sm:flex-row sm:flex-wrap sm:items-center">
         <SchoolBadge name={schoolName} badgeUrl={badgeUrl} size="xl" />
-        <div className="flex flex-wrap gap-2">
+        <div className="flex w-full flex-col gap-2 sm:w-auto sm:flex-row sm:flex-wrap">
           <input
             ref={inputRef}
             type="file"
@@ -58,6 +58,7 @@ export function SchoolBadgeUpload({
             variant="secondary"
             size="sm"
             loading={uploading}
+            className="w-full sm:w-auto"
             onClick={() => inputRef.current?.click()}
           >
             {badgeUrl ? "Replace badge" : "Upload badge"}
@@ -68,6 +69,7 @@ export function SchoolBadgeUpload({
               variant="ghost"
               size="sm"
               loading={removing}
+              className="w-full sm:w-auto"
               onClick={() => {
                 setError(null);
                 void onRemove().catch((err) => setError(parseError(err).message));

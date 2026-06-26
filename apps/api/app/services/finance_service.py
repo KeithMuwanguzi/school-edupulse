@@ -9,6 +9,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from app.core.errors import NotFoundError, ValidationError
+from app.core.school_levels import ALL_LEVELS
 from app.models.academic import Term
 from app.models.finance import (
     FeeInvoice,
@@ -140,8 +141,55 @@ async def _term_label(session: AsyncSession, tenant_id: UUID, term_id: UUID) -> 
     return term.label if term else "Term"
 
 
-def _structure_out(structure: FeeStructure, term_label: str) -> FeeStructureOut:
+def _catalog_total(structure: FeeStructure) -> int:
+    return sum(ln.amount_ugx for ln in structure.lines if not ln.is_optional)
+
+
+def _level_base_amount(structure: FeeStructure, level: str) -> int:
+    """Per-student amount for a class level (all + matching class_level lines only)."""
+    total = 0
+    norm = _norm_class_level(level)
+    for ln in structure.lines:
+        if ln.is_optional:
+            continue
+        if ln.applies_to == "all":
+            total += ln.amount_ugx
+        elif ln.applies_to == "class_level" and _norm_class_level(ln.class_level) == norm:
+            total += ln.amount_ugx
+    return total
+
+
+async def _structure_projection(
+    session: AsyncSession,
+    tenant_id: UUID,
+    term_id: UUID,
+    structure: FeeStructure,
+) -> tuple[dict[str, int], int]:
+    level_amounts = {
+        level.value: _level_base_amount(structure, level.value) for level in ALL_LEVELS
+    }
+    level_amounts = {k: v for k, v in level_amounts.items() if v > 0}
+
+    students = list(await session.scalars(registered_students_stmt(tenant_id, term_id)))
+    expected = 0
+    for student in students:
+        class_level, _, residence = await _student_context(session, tenant_id, student)
+        applicable = _applicable_structure_lines(structure, class_level, residence)
+        expected += sum(ln.amount_ugx for ln in applicable)
+    return level_amounts, expected
+
+
+async def _structure_out(
+    session: AsyncSession,
+    tenant_id: UUID,
+    structure: FeeStructure,
+    term_label: str,
+) -> FeeStructureOut:
     lines = sorted(structure.lines, key=lambda ln: (ln.sort_order, ln.label))
+    catalog = _catalog_total(structure)
+    level_amounts, expected = await _structure_projection(
+        session, tenant_id, structure.term_id, structure
+    )
     return FeeStructureOut(
         id=structure.id,
         term_id=structure.term_id,
@@ -152,7 +200,10 @@ def _structure_out(structure: FeeStructure, term_label: str) -> FeeStructureOut:
         notes=structure.notes,
         activated_at=structure.activated_at,
         line_count=len(lines),
-        total_ugx=sum(ln.amount_ugx for ln in lines if not ln.is_optional),
+        total_ugx=catalog,
+        catalog_total_ugx=catalog,
+        expected_invoiced_ugx=expected,
+        level_amounts_ugx=level_amounts,
         lines=[
             FeeStructureLineOut(
                 id=ln.id,
@@ -183,7 +234,7 @@ async def list_structures(
             .order_by(FeeStructure.created_at.desc())
         )
     )
-    return [_structure_out(s, term.label) for s in rows]
+    return [await _structure_out(session, tenant_id, s, term.label) for s in rows]
 
 
 async def create_structure(
@@ -203,7 +254,7 @@ async def create_structure(
     session.add(structure)
     await session.flush()
     await session.refresh(structure, ["lines"])
-    return _structure_out(structure, term.label)
+    return await _structure_out(session, tenant_id, structure, term.label)
 
 
 async def update_structure(
@@ -223,7 +274,7 @@ async def update_structure(
         structure.notes = body.notes
     await session.flush()
     term_label = await _term_label(session, tenant_id, structure.term_id)
-    return _structure_out(structure, term_label)
+    return await _structure_out(session, tenant_id, structure, term_label)
 
 
 async def activate_structure(
@@ -250,7 +301,7 @@ async def activate_structure(
     structure.activated_at = dt.datetime.now(dt.UTC)
     await session.flush()
     term_label = await _term_label(session, tenant_id, structure.term_id)
-    return _structure_out(structure, term_label)
+    return await _structure_out(session, tenant_id, structure, term_label)
 
 
 async def add_structure_line(
@@ -279,7 +330,7 @@ async def add_structure_line(
     await session.flush()
     await session.refresh(structure, ["lines"])
     term_label = await _term_label(session, tenant_id, structure.term_id)
-    return _structure_out(structure, term_label)
+    return await _structure_out(session, tenant_id, structure, term_label)
 
 
 async def update_structure_line(
@@ -309,7 +360,7 @@ async def update_structure_line(
         line.is_optional = body.is_optional
     await session.flush()
     term_label = await _term_label(session, tenant_id, structure.term_id)
-    return _structure_out(structure, term_label)
+    return await _structure_out(session, tenant_id, structure, term_label)
 
 
 async def delete_structure_line(
@@ -328,7 +379,7 @@ async def delete_structure_line(
     await session.flush()
     await session.refresh(structure, ["lines"])
     term_label = await _term_label(session, tenant_id, structure.term_id)
-    return _structure_out(structure, term_label)
+    return await _structure_out(session, tenant_id, structure, term_label)
 
 
 async def _student_context(
@@ -642,25 +693,72 @@ async def finance_summary(
     tenant_id: UUID,
     *,
     term_id: UUID | None = None,
+    class_id: UUID | None = None,
 ) -> FinanceSummaryOut:
     term = await _resolve_term(session, tenant_id, term_id)
     roster = await registered_roster_summary(session, tenant_id, term_id=term.id)
 
-    invoices = list(
-        await session.scalars(
-            select(FeeInvoice).where(
-                FeeInvoice.tenant_id == tenant_id,
-                FeeInvoice.term_id == term.id,
+    class_label: str | None = None
+    registered_count = roster.total_registered
+    if class_id is not None:
+        match = next((c for c in roster.classes if c.class_id == class_id), None)
+        if match is None:
+            school_class = await session.scalar(
+                select(SchoolClass).where(
+                    SchoolClass.tenant_id == tenant_id,
+                    SchoolClass.id == class_id,
+                    SchoolClass.deleted_at.is_(None),
+                )
             )
-        )
+            if school_class is None:
+                raise NotFoundError("Class not found.")
+            class_label = f"{school_class.level.value} · {school_class.label}"
+            registered_count = 0
+        else:
+            class_label = f"{match.level} · {match.label}"
+            registered_count = match.count
+
+    invoice_stmt = select(FeeInvoice).where(
+        FeeInvoice.tenant_id == tenant_id,
+        FeeInvoice.term_id == term.id,
     )
+    if class_id is not None:
+        invoice_stmt = invoice_stmt.join(
+            Student,
+            (Student.id == FeeInvoice.student_id) & (Student.tenant_id == FeeInvoice.tenant_id),
+        ).where(Student.class_id == class_id)
+
+    invoices = list(await session.scalars(invoice_stmt))
+
     active_structure = await session.scalar(
-        select(FeeStructure).where(
+        select(FeeStructure)
+        .options(selectinload(FeeStructure.lines))
+        .where(
             FeeStructure.tenant_id == tenant_id,
             FeeStructure.term_id == term.id,
             FeeStructure.status == "active",
         )
     )
+
+    expected_invoiced: int | None = None
+    if active_structure is not None:
+        if class_id is not None:
+            students = list(
+                await session.scalars(
+                    registered_students_stmt(tenant_id, term.id, class_id=class_id)
+                )
+            )
+            expected_invoiced = 0
+            for student in students:
+                class_level, _, residence = await _student_context(session, tenant_id, student)
+                applicable = _applicable_structure_lines(
+                    active_structure, class_level, residence
+                )
+                expected_invoiced += sum(ln.amount_ugx for ln in applicable)
+        else:
+            _, expected_invoiced = await _structure_projection(
+                session, tenant_id, term.id, active_structure
+            )
 
     counts = {"unpaid": 0, "partial": 0, "paid": 0, "waived": 0, "overdue": 0}
     total_invoiced = 0
@@ -678,11 +776,14 @@ async def finance_summary(
         term_label=term.label,
         active_structure_id=active_structure.id if active_structure else None,
         active_structure_name=active_structure.name if active_structure else None,
-        registered_count=roster.total_registered,
+        class_id=class_id,
+        class_label=class_label,
+        registered_count=registered_count,
         invoiced_count=len(invoices),
-        not_invoiced_count=max(roster.total_registered - len(invoices), 0),
+        not_invoiced_count=max(registered_count - len(invoices), 0),
         total_invoiced_ugx=total_invoiced,
         total_collected_ugx=total_collected,
         total_outstanding_ugx=max(total_invoiced - total_collected, 0),
+        expected_invoiced_ugx=expected_invoiced,
         counts=counts,
     )

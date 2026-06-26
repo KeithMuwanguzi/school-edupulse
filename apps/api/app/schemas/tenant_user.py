@@ -38,6 +38,7 @@ class TenantUserOut(BaseModel):
     email: str | None = None
     # None = inherits the school's full module set; a list narrows access.
     allowed_modules: list[str] | None = None
+    must_change_password: bool = False
     last_login_at: dt.datetime | None = None
     created_at: dt.datetime
 
@@ -86,9 +87,15 @@ class TenantUserUpdate(BaseModel):
         return _clean_modules(v)
 
 
-class PasswordResetStubResponse(BaseModel):
+class PasswordResetResponse(BaseModel):
     message: str
-    temporary_password: str
+    temporary_password: str | None = None
+    email_sent: bool = False
+    email_recipient: str | None = None
+
+
+# Backward-compatible alias used in older imports/tests.
+PasswordResetStubResponse = PasswordResetResponse
 
 
 class TeacherImportRow(BaseModel):

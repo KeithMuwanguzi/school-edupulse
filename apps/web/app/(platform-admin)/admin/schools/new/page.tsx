@@ -76,16 +76,28 @@ export default function OnboardSchoolPage() {
     [form.school_code, form.admin_login_id],
   );
 
+  const canSubmit = useMemo(() => {
+    return (
+      form.name.trim().length >= 2 &&
+      /^[A-Z0-9]{4,8}$/.test(form.school_code.trim()) &&
+      form.email.trim().length > 0 &&
+      form.admin_name.trim().length >= 2 &&
+      form.admin_password.length >= 8
+    );
+  }, [form]);
+
   async function onSubmit(e: FormEvent) {
     e.preventDefault();
     setError(null);
+    if (!canSubmit) return;
+    const email = form.email.trim();
     const payload = {
       name: form.name,
       school_code: form.school_code,
       ownership: form.ownership,
       district_id: form.district_id || null,
       phone: form.phone || null,
-      email: form.email || null,
+      email,
       head_teacher_name: form.head_teacher_name || null,
       emis_number: form.emis_number || null,
       status: form.status,
@@ -94,7 +106,6 @@ export default function OnboardSchoolPage() {
         name: form.admin_name,
         login_id: form.admin_login_id,
         password: form.admin_password,
-        email: form.email || null,
       },
     };
     try {
@@ -183,8 +194,19 @@ export default function OnboardSchoolPage() {
               <FormField label="Phone" error={fieldErrors["phone"]}>
                 <Input value={form.phone} onChange={set("phone")} placeholder="+256…" />
               </FormField>
-              <FormField label="Email" error={fieldErrors["email"]}>
-                <Input type="email" value={form.email} onChange={set("email")} />
+              <FormField
+                label="School email"
+                hint="Portal credentials are emailed here — must be unique per school"
+                required
+                error={fieldErrors["email"]}
+              >
+                <Input
+                  type="email"
+                  value={form.email}
+                  onChange={set("email")}
+                  required
+                  invalid={!!fieldErrors["email"]}
+                />
               </FormField>
               <FormField label="Head teacher">
                 <Input value={form.head_teacher_name} onChange={set("head_teacher_name")} />
@@ -237,7 +259,7 @@ export default function OnboardSchoolPage() {
               />
             </CardBody>
           </Card>
-          <Button type="submit" loading={submitting} className="w-full">
+          <Button type="submit" loading={submitting} disabled={!canSubmit} className="w-full">
             Onboard school
           </Button>
         </div>

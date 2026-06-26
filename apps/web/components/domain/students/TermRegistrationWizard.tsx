@@ -1,17 +1,16 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/Button";
 import { Card, CardBody, CardHeader } from "@/components/ui/Card";
-import { FormField } from "@/components/ui/FormField";
 import { Icon } from "@/components/ui/Icon";
 import { Input } from "@/components/ui/Input";
 import { Select } from "@/components/ui/Select";
 import { PageLoader } from "@/components/ui/Spinner";
 import { Badge } from "@/components/ui/Badge";
 import { EmptyState } from "@/components/ui/EmptyState";
-import { SettingsHint } from "@/components/layout/settingsUi";
+import { WizardFlow } from "@/components/ui/WizardFlow";
 import { cn } from "@/lib/cn";
 import { parseError } from "@/lib/apiError";
 import type {
@@ -25,12 +24,21 @@ import {
 } from "@/store/api/skulpulseApi";
 import { useToast } from "@/components/ui/Toast";
 
-const compact = "h-7 text-[12px]";
+const compact = "h-9 text-[13px] sm:h-7 sm:text-[12px]";
 
 type DraftValues = Record<string, string | boolean | number | "">;
 
 function responseMap(section: RegistrationSectionProgressOut) {
-  const map: Record<string, { value?: unknown; status: string; notes?: string | null; recorded_by_name?: string | null; recorded_at?: string | null }> = {};
+  const map: Record<
+    string,
+    {
+      value?: unknown;
+      status: string;
+      notes?: string | null;
+      recorded_by_name?: string | null;
+      recorded_at?: string | null;
+    }
+  > = {};
   for (const r of section.responses) {
     map[r.requirement_id] = r;
   }
@@ -68,10 +76,22 @@ export function TermRegistrationWizard({ registrationId }: { registrationId: str
     [data, activeSectionId],
   );
 
+  const steps = useMemo(
+    () =>
+      (data?.sections ?? []).map((sec) => ({
+        id: sec.section_id,
+        label: sec.label,
+        complete: sec.is_complete,
+      })),
+    [data?.sections],
+  );
+
   useEffect(() => {
-    if (data?.sections.length && !activeSectionId) {
-      setActiveSectionId(data.sections[0].section_id);
-    }
+    if (!data?.sections.length) return;
+    if (activeSectionId) return;
+    const firstOpen =
+      data.sections.find((s) => !s.is_complete)?.section_id ?? data.sections[0].section_id;
+    setActiveSectionId(firstOpen);
   }, [data, activeSectionId]);
 
   useEffect(() => {
@@ -79,6 +99,43 @@ export function TermRegistrationWizard({ registrationId }: { registrationId: str
       setDrafts(draftsFromSection(activeSection));
     }
   }, [activeSection]);
+
+  const saveSection = useCallback(
+    async (advance = false) => {
+      if (!activeSection || data?.status === "complete") return false;
+      const responses = activeSection.requirements.map((req) => {
+        const raw = drafts[req.id];
+        let value: string | boolean | number | null = raw === "" ? null : raw;
+        if (req.field_type === "checkbox") value = raw === true;
+        return {
+          requirement_id: req.id,
+          value,
+          status:
+            req.field_type === "checkbox" && value !== true && req.is_required
+              ? "pending"
+              : "satisfied",
+        };
+      });
+
+      try {
+        await upsertResponses({ registrationId, responses }).unwrap();
+        toast(`${activeSection.label} saved.`, "success");
+        const refreshed = await refetch();
+        const sections = refreshed.data?.sections ?? data?.sections ?? [];
+        if (advance && sections.length > 0) {
+          const idx = sections.findIndex((s) => s.section_id === activeSection.section_id);
+          const next = sections.slice(idx + 1).find((s) => !s.is_complete);
+          if (next) setActiveSectionId(next.section_id);
+        }
+        return true;
+      } catch (err) {
+        const p = parseError(err);
+        toast(p.message, "error", p.requestId);
+        return false;
+      }
+    },
+    [activeSection, data?.sections, data?.status, drafts, refetch, registrationId, toast, upsertResponses],
+  );
 
   if (isLoading || !data) return <PageLoader />;
   if (isError) {
@@ -101,29 +158,7 @@ export function TermRegistrationWizard({ registrationId }: { registrationId: str
     data.required_total > 0
       ? Math.round((data.required_done / data.required_total) * 100)
       : 0;
-
-  async function saveSection() {
-    if (!activeSection || readOnly) return;
-    const responses = activeSection.requirements.map((req) => {
-      const raw = drafts[req.id];
-      let value: string | boolean | number | null = raw === "" ? null : raw;
-      if (req.field_type === "checkbox") value = raw === true;
-      return {
-        requirement_id: req.id,
-        value,
-        status: req.field_type === "checkbox" && value !== true && req.is_required ? "pending" : "satisfied",
-      };
-    });
-
-    try {
-      await upsertResponses({ registrationId, responses }).unwrap();
-      toast(`${activeSection.label} saved.`, "success");
-      await refetch();
-    } catch (err) {
-      const p = parseError(err);
-      toast(p.message, "error", p.requestId);
-    }
-  }
+  const activeIndex = steps.findIndex((s) => s.id === activeSectionId);
 
   async function finalize() {
     try {
@@ -137,7 +172,7 @@ export function TermRegistrationWizard({ registrationId }: { registrationId: str
   }
 
   return (
-    <div className="space-y-4">
+    <div className="mx-auto max-w-2xl space-y-4 pb-6">
       <Card>
         <CardHeader
           title={`${data.first_name} ${data.last_name}`}
@@ -148,7 +183,7 @@ export function TermRegistrationWizard({ registrationId }: { registrationId: str
               onClick={() => router.push("/app/m/students/term")}
               className="text-[11px] font-medium text-slate-400 hover:text-slate-600"
             >
-              Back to queue
+              Back
             </button>
           }
         />
@@ -157,23 +192,21 @@ export function TermRegistrationWizard({ registrationId }: { registrationId: str
             <Badge tone={data.status === "complete" ? "green" : "gold"} dot>
               {data.status === "complete" ? "Complete" : "In progress"}
             </Badge>
-            <div className="flex flex-1 items-center gap-2">
-              <div className="h-2 max-w-xs flex-1 overflow-hidden rounded-full bg-slate-100">
+            <div className="flex min-w-0 flex-1 items-center gap-2">
+              <div className="h-2 min-w-[5rem] flex-1 overflow-hidden rounded-full bg-slate-100">
                 <div
                   className={cn("h-full rounded-full", pct === 100 ? "bg-brand-600" : "bg-gold-500")}
                   style={{ width: `${pct}%` }}
                 />
               </div>
-              <span className="text-[11px] text-slate-500">
-                {data.required_done}/{data.required_total} required · {data.sections_complete}/
-                {data.sections_total} sections
+              <span className="shrink-0 text-[11px] text-slate-500">
+                {data.required_done}/{data.required_total} required
               </span>
             </div>
           </div>
-          <SettingsHint>
-            Staff can work on different sections independently — open Finance, Health, or any other
-            tab and save your checks. Registration completes when all required items are satisfied.
-          </SettingsHint>
+          <p className="text-[11px] leading-relaxed text-slate-400">
+            Work through each section in order. Save and continue to move to the next check.
+          </p>
         </CardBody>
       </Card>
 
@@ -184,73 +217,59 @@ export function TermRegistrationWizard({ registrationId }: { registrationId: str
             Term registration.
           </CardBody>
         </Card>
-      ) : (
-      <div className="grid gap-4 lg:grid-cols-[220px_1fr]">
-        <Card className="h-fit">
-          <CardBody className="space-y-1 p-2">
-            {data.sections.map((sec) => (
-              <button
-                key={sec.section_id}
-                type="button"
-                onClick={() => setActiveSectionId(sec.section_id)}
-                className={cn(
-                  "flex w-full items-center justify-between rounded-md px-2.5 py-2 text-left text-[12px] transition-colors",
-                  activeSection?.section_id === sec.section_id
-                    ? "bg-brand-50 font-medium text-brand-800 ring-1 ring-brand-200"
-                    : "text-slate-600 hover:bg-slate-50",
-                )}
-              >
-                <span className="flex items-center gap-2">
-                  {sec.icon && <Icon name={sec.icon} size={13} />}
-                  {sec.label}
-                </span>
-                {sec.is_complete ? (
-                  <Icon name="check" size={13} className="text-brand-600" />
-                ) : (
-                  <span className="text-[10px] text-slate-400">
-                    {sec.required_done}/{sec.required_total}
-                  </span>
-                )}
-              </button>
-            ))}
+      ) : activeSection && activeSectionId ? (
+        <Card>
+          <CardBody className="py-4">
+            <WizardFlow
+              steps={steps}
+              activeStepId={activeSectionId}
+              onStepChange={setActiveSectionId}
+              readOnly={readOnly}
+              saving={saving}
+              onBack={() => {
+                if (activeIndex > 0) {
+                  setActiveSectionId(steps[activeIndex - 1].id);
+                }
+              }}
+              onSave={() => void saveSection(false)}
+              onNext={() => void saveSection(true)}
+              saveLabel="Save section"
+              nextLabel={
+                activeIndex < steps.length - 1 ? "Save & next section" : "Save section"
+              }
+              extraActions={
+                !readOnly &&
+                data.required_done >= data.required_total &&
+                data.required_total > 0 ? (
+                  <Button size="sm" loading={completing} onClick={() => void finalize()}>
+                    Mark complete
+                  </Button>
+                ) : undefined
+              }
+            >
+              <div className="space-y-3">
+                <div>
+                  <h3 className="text-[14px] font-semibold text-slate-900">{activeSection.label}</h3>
+                  <p className="text-[11px] text-slate-400">
+                    {activeSection.required_done} of {activeSection.required_total} required items
+                    done
+                  </p>
+                </div>
+                {activeSection.requirements.map((req) => (
+                  <RequirementField
+                    key={req.id}
+                    req={req}
+                    value={drafts[req.id]}
+                    existing={responseMap(activeSection)[req.id]}
+                    readOnly={readOnly}
+                    onChange={(v) => setDrafts((prev) => ({ ...prev, [req.id]: v }))}
+                  />
+                ))}
+              </div>
+            </WizardFlow>
           </CardBody>
         </Card>
-
-        {activeSection && (
-          <Card>
-            <CardHeader
-              title={activeSection.label}
-              description={`${activeSection.required_done} of ${activeSection.required_total} required items done`}
-            />
-            <CardBody className="space-y-4 py-3">
-              {activeSection.requirements.map((req) => (
-                <RequirementField
-                  key={req.id}
-                  req={req}
-                  value={drafts[req.id]}
-                  existing={responseMap(activeSection)[req.id]}
-                  readOnly={readOnly}
-                  onChange={(v) => setDrafts((prev) => ({ ...prev, [req.id]: v }))}
-                />
-              ))}
-
-              {!readOnly && (
-                <div className="flex flex-wrap items-center justify-end gap-2 border-t border-slate-100 pt-3">
-                  <Button size="sm" variant="secondary" loading={saving} onClick={() => void saveSection()}>
-                    Save {activeSection.label}
-                  </Button>
-                  {data.required_done >= data.required_total && data.required_total > 0 && (
-                    <Button size="sm" loading={completing} onClick={() => void finalize()}>
-                      Mark registration complete
-                    </Button>
-                  )}
-                </div>
-              )}
-            </CardBody>
-          </Card>
-        )}
-      </div>
-      )}
+      ) : null}
     </div>
   );
 }
@@ -273,10 +292,10 @@ function RequirementField({
   onChange: (v: string | boolean | number | "") => void;
 }) {
   return (
-    <div className="rounded-lg border border-slate-100 p-3">
+    <div className="rounded-lg border border-slate-100 p-3 sm:p-3.5">
       <div className="mb-2 flex items-start justify-between gap-2">
         <div>
-          <p className="text-[12px] font-medium text-slate-800">
+          <p className="text-[13px] font-medium text-slate-800 sm:text-[12px]">
             {req.label}
             {req.is_required && <span className="ml-1 text-red-500">*</span>}
           </p>
@@ -288,13 +307,13 @@ function RequirementField({
       </div>
 
       {req.field_type === "checkbox" ? (
-        <label className="flex items-center gap-2 text-[12px] text-slate-600">
+        <label className="flex min-h-[44px] items-center gap-2 text-[13px] text-slate-600 sm:text-[12px]">
           <input
             type="checkbox"
             checked={value === true}
             disabled={readOnly}
             onChange={(e) => onChange(e.target.checked)}
-            className="rounded border-slate-300"
+            className="h-4 w-4 rounded border-slate-300"
           />
           Verified
         </label>
@@ -304,7 +323,7 @@ function RequirementField({
           disabled={readOnly}
           onChange={(e) => onChange(e.target.value)}
           rows={3}
-          className="w-full rounded-md border border-slate-200 px-2 py-1.5 text-[12px]"
+          className="w-full rounded-md border border-slate-200 px-3 py-2 text-[13px] sm:text-[12px]"
         />
       ) : req.field_type === "select" ? (
         <Select

@@ -1,9 +1,10 @@
 """Platform-layer tables (no tenant_id) — §5.1."""
 from __future__ import annotations
 
+import datetime as dt
 import uuid
 
-from sqlalchemy import Boolean, Integer, String
+from sqlalchemy import Boolean, DateTime, Integer, String
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -21,7 +22,7 @@ class Tenant(Base, TimestampMixin, SoftDeleteMixin):
     )
 
 
-class PlatformAdmin(Base, TimestampMixin):
+class PlatformAdmin(Base, TimestampMixin, SoftDeleteMixin):
     __tablename__ = "platform_admins"
 
     id: Mapped[uuid.UUID] = uuid_pk()
@@ -29,6 +30,10 @@ class PlatformAdmin(Base, TimestampMixin):
     password_hash: Mapped[str] = mapped_column(String(255), nullable=False)
     name: Mapped[str] = mapped_column(String(255), nullable=False)
     is_active: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
+    must_change_password: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+    last_login_at: Mapped[dt.datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
 
 
 class ModuleCatalog(Base):

@@ -41,8 +41,20 @@ export function TR({ children, onClick }: { children: ReactNode; onClick?: () =>
   );
 }
 
-export function TD({ children, className }: { children?: ReactNode; className?: string }) {
-  return <td className={cn("px-4 py-2.5 text-[12px] text-slate-700", className)}>{children}</td>;
+export function TD({
+  children,
+  className,
+  colSpan,
+}: {
+  children?: ReactNode;
+  className?: string;
+  colSpan?: number;
+}) {
+  return (
+    <td colSpan={colSpan} className={cn("px-4 py-2.5 text-[12px] text-slate-700", className)}>
+      {children}
+    </td>
+  );
 }
 
 export function SkeletonRows({ cols, rows = 5 }: { cols: number; rows?: number }) {

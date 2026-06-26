@@ -16,6 +16,7 @@ from app.core.logging import configure_logging, get_logger
 from app.middleware.request_logging import RequestLoggingMiddleware
 from app.middleware.security import SecurityHeadersMiddleware
 from app.routers import auth, branding, health
+from app.routers.platform import admins as platform_admins
 from app.routers.platform import geo as platform_geo
 from app.routers.platform import logs as platform_logs
 from app.routers.platform import modules as platform_modules
@@ -84,6 +85,7 @@ def create_app() -> FastAPI:
     app.include_router(auth.router, prefix=API_PREFIX)
     app.include_router(branding.router, prefix=API_PREFIX)
     app.include_router(platform_schools.router, prefix=API_PREFIX)
+    app.include_router(platform_admins.router, prefix=API_PREFIX)
     app.include_router(platform_modules.router, prefix=API_PREFIX)
     app.include_router(platform_geo.router, prefix=API_PREFIX)
     app.include_router(platform_logs.router, prefix=API_PREFIX)

@@ -15,6 +15,7 @@ from app.models.assessment import (
     StudentAssessmentMark,
     TermCaPolicy,
 )
+from app.core.school_levels import LEVEL_CYCLE
 from app.models.enums import ClassLevel, NcdcCycle
 from app.models.grading import AggregateDivision, GradeRange, GradingScale
 from app.models.school_class import SchoolClass
@@ -48,19 +49,9 @@ from app.schemas.assessment import (
     TermCaConfigOut,
     TermCaConfigUpdate,
 )
+from app.services.grading_config_service import scale_id_for_subject_cycle
 from app.services.term_registration_service import _resolve_term
 from app.services.term_roster_service import registered_students_stmt
-
-_LEVEL_CYCLE: dict[ClassLevel, NcdcCycle] = {
-    ClassLevel.P1: NcdcCycle.cycle_1,
-    ClassLevel.P2: NcdcCycle.cycle_1,
-    ClassLevel.P3: NcdcCycle.cycle_1,
-    ClassLevel.P4: NcdcCycle.cycle_2,
-    ClassLevel.P5: NcdcCycle.cycle_3,
-    ClassLevel.P6: NcdcCycle.cycle_3,
-    ClassLevel.P7: NcdcCycle.cycle_3,
-}
-
 _ADMIN_ROLES = frozenset({"school_admin", "deputy_head"})
 
 
@@ -417,7 +408,7 @@ async def _teacher_assigned(
 async def _subjects_for_class(
     session: AsyncSession, tenant_id: UUID, level: ClassLevel
 ) -> list[Subject]:
-    cycle = _LEVEL_CYCLE[level]
+    cycle = LEVEL_CYCLE[level]
     rows = await session.scalars(
         select(Subject)
         .where(
@@ -862,18 +853,21 @@ async def _scale_for_subject(
     subject: Subject,
     level: ClassLevel,
 ) -> GradingScale | None:
-    """Grade scale for a subject: its own assignment, else the cycle default."""
-    if subject.grading_scale_id is not None:
+    """Grade scale for a subject: its cycle assignment, else the cycle default."""
+    cycle = LEVEL_CYCLE[level]
+    assigned_scale_id = await scale_id_for_subject_cycle(
+        session, tenant_id, subject.id, cycle
+    )
+    if assigned_scale_id is not None:
         scale = await session.scalar(
             select(GradingScale).where(
                 GradingScale.tenant_id == tenant_id,
-                GradingScale.id == subject.grading_scale_id,
+                GradingScale.id == assigned_scale_id,
                 GradingScale.deleted_at.is_(None),
             )
         )
         if scale is not None:
             return scale
-    cycle = _LEVEL_CYCLE[level]
     return await session.scalar(
         select(GradingScale)
         .where(

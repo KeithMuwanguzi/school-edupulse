@@ -9,7 +9,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.errors import NotFoundError, ValidationError
 from app.models.enums import NcdcCycle
-from app.models.grading import AggregateDivision, GradeRange, GradingScale
+from app.models.grading import AggregateDivision, GradeRange, GradingScale, SubjectGradingAssignment
 from app.models.subject import Subject
 from app.schemas.grading import (
     AggregateDivisionCreate,
@@ -28,6 +28,72 @@ from app.schemas.grading import (
     SubjectGradingScaleUpdate,
 )
 
+PRIMARY_CYCLES = (NcdcCycle.cycle_1, NcdcCycle.cycle_2, NcdcCycle.cycle_3)
+
+
+def _subject_in_cycle(subject: Subject, cycle: NcdcCycle) -> bool:
+    for entry in subject.ncdc_cycles:
+        if entry == cycle:
+            return True
+        if isinstance(entry, str) and entry == cycle.value:
+            return True
+    return False
+
+
+def _subject_in_primary(subject: Subject) -> bool:
+    return any(_subject_in_cycle(subject, cycle) for cycle in PRIMARY_CYCLES)
+
+
+def _subject_row(
+    subject: Subject,
+    scale_by_id: dict[UUID, GradingScale],
+    *,
+    in_section: bool,
+    grading_scale_id: UUID | None = None,
+) -> SubjectGradingOut:
+    scale_name = None
+    if grading_scale_id and grading_scale_id in scale_by_id:
+        scale_name = scale_by_id[grading_scale_id].name
+    return SubjectGradingOut(
+        subject_id=subject.id,
+        subject_code=subject.code,
+        subject_name=subject.name,
+        ncdc_cycles=[c.value for c in subject.ncdc_cycles],
+        grading_scale_id=grading_scale_id,
+        grading_scale_name=scale_name,
+        in_section=in_section,
+    )
+
+
+async def _load_assignments(
+    session: AsyncSession,
+    tenant_id: UUID,
+    *,
+    cycle: NcdcCycle | None = None,
+) -> dict[tuple[UUID, NcdcCycle], UUID]:
+    q = select(SubjectGradingAssignment).where(
+        SubjectGradingAssignment.tenant_id == tenant_id,
+    )
+    if cycle is not None:
+        q = q.where(SubjectGradingAssignment.ncdc_cycle == cycle)
+    rows = list(await session.scalars(q))
+    return {(r.subject_id, r.ncdc_cycle): r.grading_scale_id for r in rows}
+
+
+async def scale_id_for_subject_cycle(
+    session: AsyncSession,
+    tenant_id: UUID,
+    subject_id: UUID,
+    cycle: NcdcCycle,
+) -> UUID | None:
+    return await session.scalar(
+        select(SubjectGradingAssignment.grading_scale_id).where(
+            SubjectGradingAssignment.tenant_id == tenant_id,
+            SubjectGradingAssignment.subject_id == subject_id,
+            SubjectGradingAssignment.ncdc_cycle == cycle,
+        )
+    )
+
 
 def _strip_comment(value: str | None) -> str | None:
     if value is None:
@@ -44,8 +110,7 @@ def _range_out(row: GradeRange) -> GradeRangeOut:
         aggregate_weight=row.aggregate_weight,
         min_mark=row.min_mark,
         max_mark=row.max_mark,
-        class_teacher_comment=row.class_teacher_comment,
-        head_teacher_comment=row.head_teacher_comment,
+        comment=row.comment,
         sort_order=row.sort_order,
         is_active=row.is_active,
     )
@@ -148,12 +213,10 @@ async def get_config(session: AsyncSession, tenant_id: UUID) -> GradingConfigOut
     )
 
     scale_by_id = {s.id: s for s in scales}
+    assignments = await _load_assignments(session, tenant_id)
     subject_counts: dict[UUID, int] = {}
-    for subject in subjects:
-        if subject.grading_scale_id:
-            subject_counts[subject.grading_scale_id] = (
-                subject_counts.get(subject.grading_scale_id, 0) + 1
-            )
+    for (_, _cycle), scale_id in assignments.items():
+        subject_counts[scale_id] = subject_counts.get(scale_id, 0) + 1
 
     divisions = list(
         await session.scalars(
@@ -169,26 +232,41 @@ async def get_config(session: AsyncSession, tenant_id: UUID) -> GradingConfigOut
     sections: list[CycleGradingSectionOut] = []
     for cycle, label in CYCLE_SECTIONS:
         cycle_scales = [s for s in scales if s.ncdc_cycle == cycle]
-        cycle_subjects = [s for s in subjects if cycle in s.ncdc_cycles]
+        cycle_subjects = [s for s in subjects if _subject_in_cycle(s, cycle)]
+        extendable: list[Subject] = []
+        if cycle in PRIMARY_CYCLES:
+            extendable = [
+                s
+                for s in subjects
+                if not _subject_in_cycle(s, cycle) and _subject_in_primary(s)
+            ]
 
-        subject_rows: list[SubjectGradingOut] = []
-        for subject in cycle_subjects:
-            scale_name = None
-            if subject.grading_scale_id and subject.grading_scale_id in scale_by_id:
-                scale_name = scale_by_id[subject.grading_scale_id].name
-            subject_rows.append(
-                SubjectGradingOut(
-                    subject_id=subject.id,
-                    subject_code=subject.code,
-                    subject_name=subject.name,
-                    ncdc_cycles=[c.value for c in subject.ncdc_cycles],
-                    grading_scale_id=subject.grading_scale_id,
-                    grading_scale_name=scale_name,
-                )
+        subject_rows = [
+            _subject_row(
+                subject,
+                scale_by_id,
+                in_section=True,
+                grading_scale_id=assignments.get((subject.id, cycle)),
             )
+            for subject in cycle_subjects
+        ]
+        extendable_rows = [
+            _subject_row(subject, scale_by_id, in_section=False, grading_scale_id=None)
+            for subject in extendable
+        ]
 
+        cycle_subject_counts = {
+            scale_id: sum(
+                1
+                for (sid, cyc), sid_scale in assignments.items()
+                if cyc == cycle and sid_scale == scale_id
+            )
+            for scale_id in {s.id for s in cycle_scales}
+        }
         scale_rows = [
-            await _scale_out(session, tenant_id, scale, subject_counts=subject_counts)
+            await _scale_out(
+                session, tenant_id, scale, subject_counts=cycle_subject_counts
+            )
             for scale in cycle_scales
         ]
         sections.append(
@@ -197,6 +275,7 @@ async def get_config(session: AsyncSession, tenant_id: UUID) -> GradingConfigOut
                 cycle_label=label,
                 scales=scale_rows,
                 subjects=subject_rows,
+                extendable_subjects=extendable_rows,
             )
         )
 
@@ -245,11 +324,10 @@ async def update_scale(
     count = int(
         await session.scalar(
             select(func.count())
-            .select_from(Subject)
+            .select_from(SubjectGradingAssignment)
             .where(
-                Subject.tenant_id == tenant_id,
-                Subject.grading_scale_id == scale_id,
-                Subject.deleted_at.is_(None),
+                SubjectGradingAssignment.tenant_id == tenant_id,
+                SubjectGradingAssignment.grading_scale_id == scale_id,
             )
         )
         or 0
@@ -262,11 +340,10 @@ async def delete_scale(session: AsyncSession, tenant_id: UUID, scale_id: UUID) -
     assigned = int(
         await session.scalar(
             select(func.count())
-            .select_from(Subject)
+            .select_from(SubjectGradingAssignment)
             .where(
-                Subject.tenant_id == tenant_id,
-                Subject.grading_scale_id == scale_id,
-                Subject.deleted_at.is_(None),
+                SubjectGradingAssignment.tenant_id == tenant_id,
+                SubjectGradingAssignment.grading_scale_id == scale_id,
             )
         )
         or 0
@@ -309,8 +386,7 @@ async def create_range(
         aggregate_weight=body.aggregate_weight,
         min_mark=body.min_mark,
         max_mark=body.max_mark,
-        class_teacher_comment=_strip_comment(body.class_teacher_comment),
-        head_teacher_comment=_strip_comment(body.head_teacher_comment),
+        comment=_strip_comment(body.comment),
         sort_order=body.sort_order if body.sort_order is not None else int(max_order) + 1,
     )
     session.add(row)
@@ -339,10 +415,8 @@ async def update_range(
         row.min_mark = body.min_mark
     if body.max_mark is not None:
         row.max_mark = body.max_mark
-    if body.class_teacher_comment is not None:
-        row.class_teacher_comment = _strip_comment(body.class_teacher_comment)
-    if body.head_teacher_comment is not None:
-        row.head_teacher_comment = _strip_comment(body.head_teacher_comment)
+    if body.comment is not None:
+        row.comment = _strip_comment(body.comment)
     if body.sort_order is not None:
         row.sort_order = body.sort_order
     if body.is_active is not None:
@@ -376,27 +450,57 @@ async def assign_subject_scale(
     if subject is None:
         raise NotFoundError("Subject not found.")
 
-    scale_name = None
-    if body.grading_scale_id is not None:
+    cycle = NcdcCycle(body.ncdc_cycle)
+    if not _subject_in_cycle(subject, cycle):
+        raise ValidationError(
+            f"This subject is not in {cycle.value.replace('_', ' ')}. "
+            f"Add it under Settings → Subjects first."
+        )
+
+    existing = await session.scalar(
+        select(SubjectGradingAssignment).where(
+            SubjectGradingAssignment.tenant_id == tenant_id,
+            SubjectGradingAssignment.subject_id == subject_id,
+            SubjectGradingAssignment.ncdc_cycle == cycle,
+        )
+    )
+
+    scale_by_id: dict[UUID, GradingScale] = {}
+    assigned_scale_id: UUID | None = None
+
+    if body.grading_scale_id is None:
+        if existing is not None:
+            await session.delete(existing)
+            await session.flush()
+    else:
         scale = await _load_scale(session, tenant_id, body.grading_scale_id)
-        if scale.ncdc_cycle not in subject.ncdc_cycles:
+        if scale.ncdc_cycle != cycle:
             raise ValidationError(
-                f"Scale '{scale.name}' is for {scale.ncdc_cycle.value}, "
-                f"but this subject is not in that section."
+                f"Scale '{scale.name}' is for {scale.ncdc_cycle.value.replace('_', ' ')}, "
+                f"not {cycle.value.replace('_', ' ')}."
             )
-        scale_name = scale.name
+        scale_by_id = {scale.id: scale}
+        assigned_scale_id = scale.id
 
-    subject.grading_scale_id = body.grading_scale_id
-    subject.updated_at = dt.datetime.now(dt.UTC)
-    await session.flush()
+        if existing is not None:
+            existing.grading_scale_id = scale.id
+            existing.updated_at = dt.datetime.now(dt.UTC)
+        else:
+            session.add(
+                SubjectGradingAssignment(
+                    tenant_id=tenant_id,
+                    subject_id=subject_id,
+                    ncdc_cycle=cycle,
+                    grading_scale_id=scale.id,
+                )
+            )
+        await session.flush()
 
-    return SubjectGradingOut(
-        subject_id=subject.id,
-        subject_code=subject.code,
-        subject_name=subject.name,
-        ncdc_cycles=[c.value for c in subject.ncdc_cycles],
-        grading_scale_id=subject.grading_scale_id,
-        grading_scale_name=scale_name,
+    return _subject_row(
+        subject,
+        scale_by_id,
+        in_section=True,
+        grading_scale_id=assigned_scale_id,
     )
 
 

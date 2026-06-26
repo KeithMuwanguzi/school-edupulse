@@ -42,8 +42,7 @@ class GradeRange(Base, TimestampMixin, SoftDeleteMixin):
     aggregate_weight: Mapped[int] = mapped_column(SmallInteger, nullable=False)
     min_mark: Mapped[int] = mapped_column(SmallInteger, nullable=False)
     max_mark: Mapped[int] = mapped_column(SmallInteger, nullable=False)
-    class_teacher_comment: Mapped[str | None] = mapped_column(Text, nullable=True)
-    head_teacher_comment: Mapped[str | None] = mapped_column(Text, nullable=True)
+    comment: Mapped[str | None] = mapped_column(Text, nullable=True)
     sort_order: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
     is_active: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
 
@@ -64,3 +63,21 @@ class AggregateDivision(Base, TimestampMixin, SoftDeleteMixin):
     head_teacher_comment: Mapped[str | None] = mapped_column(Text, nullable=True)
     sort_order: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
     is_active: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
+
+
+class SubjectGradingAssignment(Base, TimestampMixin):
+    """Grading scale for a subject within one NCDC section (P1–P3, P4, or P5–P7)."""
+
+    __tablename__ = "subject_grading_assignments"
+
+    id: Mapped[uuid.UUID] = uuid_pk()
+    tenant_id: Mapped[uuid.UUID] = mapped_column(
+        PGUUID(as_uuid=True), ForeignKey("tenants.id"), nullable=False
+    )
+    subject_id: Mapped[uuid.UUID] = mapped_column(
+        PGUUID(as_uuid=True), ForeignKey("subjects.id"), nullable=False
+    )
+    ncdc_cycle: Mapped[NcdcCycle] = mapped_column(pg_enum(NcdcCycle), nullable=False)
+    grading_scale_id: Mapped[uuid.UUID] = mapped_column(
+        PGUUID(as_uuid=True), ForeignKey("grading_scales.id"), nullable=False
+    )

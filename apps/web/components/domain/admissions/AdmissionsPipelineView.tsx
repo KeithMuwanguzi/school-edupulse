@@ -3,13 +3,14 @@
 import { useMemo, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { SettingsStatRow } from "@/components/layout/settingsUi";
+import { SettingsFilterPills, SettingsStatRow } from "@/components/layout/settingsUi";
 import { Badge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
 import { Card } from "@/components/ui/Card";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { ErrorBanner } from "@/components/ui/ErrorBanner";
 import { Icon } from "@/components/ui/Icon";
+import { PageToolbar, PageToolbarGroup } from "@/components/ui/PageToolbar";
 import { RefreshButton } from "@/components/ui/RefreshButton";
 import { cn } from "@/lib/cn";
 import { parseError } from "@/lib/apiError";
@@ -62,11 +63,11 @@ function PipelineCard({
       {app.interview_score != null && (
         <p className="mt-1 text-[10px] text-brand-700">Score: {app.interview_score}</p>
       )}
-      <div className="mt-2 flex flex-wrap gap-1.5">
+      <div className="mt-2 flex flex-col gap-1.5 sm:flex-row sm:flex-wrap">
         {canEnroll && (
           <Link
             href={`/app/m/admissions/enroll/${app.id}`}
-            className="inline-flex items-center rounded-md bg-brand-600 px-2 py-1 text-[10px] font-medium text-white hover:bg-brand-700"
+            className="inline-flex w-full items-center justify-center rounded-md bg-brand-600 px-2 py-1.5 text-[10px] font-medium text-white hover:bg-brand-700 sm:w-auto sm:py-1"
           >
             Enroll
           </Link>
@@ -74,7 +75,7 @@ function PipelineCard({
         {app.status === "enrolled" && app.student_id && (
           <Link
             href={`/app/m/students/${app.student_id}`}
-            className="inline-flex items-center rounded-md border border-slate-200 px-2 py-1 text-[10px] font-medium text-slate-600 hover:bg-slate-50"
+            className="inline-flex w-full items-center justify-center rounded-md border border-slate-200 px-2 py-1.5 text-[10px] font-medium text-slate-600 hover:bg-slate-50 sm:w-auto sm:py-1"
           >
             View student
           </Link>
@@ -84,7 +85,7 @@ function PipelineCard({
             type="button"
             disabled={advancing}
             onClick={() => onAdvance(app.id, next)}
-            className="rounded-md border border-slate-200 px-2 py-1 text-[10px] font-medium text-slate-600 hover:bg-slate-50 disabled:opacity-50"
+            className="w-full rounded-md border border-slate-200 px-2 py-1.5 text-[10px] font-medium text-slate-600 hover:bg-slate-50 disabled:opacity-50 sm:w-auto sm:py-1"
           >
             Move to {ADMISSION_PIPELINE_STATUSES.find((s) => s.key === next)?.label}
           </button>
@@ -94,7 +95,7 @@ function PipelineCard({
             type="button"
             disabled={advancing}
             onClick={() => onWithdraw(app)}
-            className="rounded-md border border-amber-200 px-2 py-1 text-[10px] font-medium text-amber-800 hover:bg-amber-50 disabled:opacity-50"
+            className="w-full rounded-md border border-amber-200 px-2 py-1.5 text-[10px] font-medium text-amber-800 hover:bg-amber-50 disabled:opacity-50 sm:w-auto sm:py-1"
           >
             Close
           </button>
@@ -138,7 +139,7 @@ function ArchiveCard({
           variant="ghost"
           loading={advancing}
           onClick={() => onReopen(app.id)}
-          className="shrink-0"
+          className="w-full shrink-0 sm:w-auto"
         >
           Reopen
         </Button>
@@ -151,6 +152,7 @@ export function AdmissionsPipelineView({ isAdmin }: AdmissionsPipelineViewProps)
   const router = useRouter();
   const { toast } = useToast();
   const [view, setView] = useState<ViewMode>("pipeline");
+  const [mobileStage, setMobileStage] = useState("application");
   const [withdrawingApp, setWithdrawingApp] = useState<AdmissionApplicationOut | null>(null);
   const { data: applications = [], isLoading, isError, refetch, isFetching } =
     useListAdmissionApplicationsQuery();
@@ -234,59 +236,93 @@ export function AdmissionsPipelineView({ isAdmin }: AdmissionsPipelineViewProps)
     }
   }
 
+  const stagePillOptions = useMemo(
+    () =>
+      ADMISSION_PIPELINE_STATUSES.map((s) => ({
+        id: s.key,
+        label: `${s.label} (${grouped[s.key]?.length ?? 0})`,
+      })),
+    [grouped],
+  );
+
+  const pipelineToggle = (
+    <div className="-mx-0.5 overflow-x-auto px-0.5 pb-0.5 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+      <div className="inline-flex min-w-max rounded-lg border border-slate-200 bg-white p-0.5">
+        <button
+          type="button"
+          onClick={() => setView("pipeline")}
+          className={cn(
+            "shrink-0 rounded-md px-3 py-1.5 text-[11px] font-medium transition-colors",
+            view === "pipeline"
+              ? "bg-brand-600 text-white shadow-sm"
+              : "text-slate-500 hover:text-slate-700",
+          )}
+        >
+          Pipeline
+        </button>
+        <button
+          type="button"
+          onClick={() => setView("archive")}
+          className={cn(
+            "shrink-0 rounded-md px-3 py-1.5 text-[11px] font-medium transition-colors",
+            view === "archive"
+              ? "bg-brand-600 text-white shadow-sm"
+              : "text-slate-500 hover:text-slate-700",
+          )}
+        >
+          Archive
+          {archivedApplications.length > 0 && (
+            <span className="ml-1 tabular-nums opacity-80">({archivedApplications.length})</span>
+          )}
+        </button>
+      </div>
+    </div>
+  );
+
   return (
     <div className="space-y-4 animate-fade-rise">
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-        <div className="flex flex-wrap items-center gap-3">
-          <div className="inline-flex rounded-lg border border-slate-200 bg-white p-0.5">
-            <button
-              type="button"
-              onClick={() => setView("pipeline")}
-              className={cn(
-                "rounded-md px-3 py-1.5 text-[11px] font-medium transition-colors",
-                view === "pipeline"
-                  ? "bg-brand-600 text-white shadow-sm"
-                  : "text-slate-500 hover:text-slate-700",
-              )}
-            >
-              Pipeline
-            </button>
-            <button
-              type="button"
-              onClick={() => setView("archive")}
-              className={cn(
-                "rounded-md px-3 py-1.5 text-[11px] font-medium transition-colors",
-                view === "archive"
-                  ? "bg-brand-600 text-white shadow-sm"
-                  : "text-slate-500 hover:text-slate-700",
-              )}
-            >
-              Archive
-              {archivedApplications.length > 0 && (
-                <span className="ml-1 tabular-nums opacity-80">({archivedApplications.length})</span>
-              )}
-            </button>
+      <div className="flex flex-col gap-3">
+        <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+          <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center">
+            {pipelineToggle}
+            {view === "pipeline" && (
+              <div className="hidden md:block">
+                <SettingsStatRow items={stats} />
+              </div>
+            )}
           </div>
-          {view === "pipeline" && <SettingsStatRow items={stats} />}
+          <PageToolbar>
+            {isAdmin && view === "pipeline" && (
+              <PageToolbarGroup>
+                <Button size="sm" variant="secondary" disabled title="Coming soon" className="w-full sm:w-auto">
+                  Public form
+                </Button>
+                <Button
+                  size="sm"
+                  className="w-full sm:w-auto"
+                  onClick={() => router.push("/app/m/admissions/new?mode=multiple")}
+                >
+                  <Icon name="plus" size={13} />
+                  Add applicants
+                </Button>
+              </PageToolbarGroup>
+            )}
+            <RefreshButton
+              onRefresh={refetch}
+              isRefreshing={isFetching}
+              label="Refresh admissions"
+            />
+          </PageToolbar>
         </div>
-        <div className="flex items-center gap-2">
-          {isAdmin && view === "pipeline" && (
-            <>
-              <Button size="sm" variant="secondary" disabled title="Coming soon">
-                Public form
-              </Button>
-              <Button size="sm" onClick={() => router.push("/app/m/admissions/new?mode=multiple")}>
-                <Icon name="plus" size={13} />
-                Add applicants
-              </Button>
-            </>
-          )}
-          <RefreshButton
-            onRefresh={refetch}
-            isRefreshing={isFetching}
-            label="Refresh admissions"
-          />
-        </div>
+        {view === "pipeline" && (
+          <div className="md:hidden">
+            <SettingsFilterPills
+              options={stagePillOptions}
+              active={mobileStage}
+              onChange={setMobileStage}
+            />
+          </div>
+        )}
       </div>
 
       {withdrawingApp && isAdmin && (
@@ -338,41 +374,83 @@ export function AdmissionsPipelineView({ isAdmin }: AdmissionsPipelineViewProps)
           }
         />
       ) : (
-        <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
-          {ADMISSION_PIPELINE_STATUSES.map((column) => (
-            <Card key={column.key} className="flex min-h-[12rem] flex-col">
-              <div className="border-b border-slate-100 px-3 py-2.5">
-                <h3 className="text-[12px] font-semibold text-slate-900">
-                  {column.label}
-                  <span className="ml-1.5 font-normal tabular-nums text-slate-400">
-                    ({grouped[column.key]?.length ?? 0})
-                  </span>
-                </h3>
-              </div>
-              <div
-                className={cn(
-                  "flex flex-1 flex-col gap-2 p-2",
-                  grouped[column.key]?.length === 0 && "justify-center",
-                )}
-              >
-                {grouped[column.key]?.length === 0 ? (
-                  <p className="py-4 text-center text-[11px] text-slate-400">Empty</p>
-                ) : (
-                  grouped[column.key].map((app) => (
-                    <PipelineCard
-                      key={app.id}
-                      app={app}
-                      isAdmin={isAdmin}
-                      onAdvance={advance}
-                      onWithdraw={setWithdrawingApp}
-                      advancing={updating}
-                    />
-                  ))
-                )}
-              </div>
-            </Card>
-          ))}
-        </div>
+        <>
+          <div className="md:hidden">
+            {(() => {
+              const column = ADMISSION_PIPELINE_STATUSES.find((s) => s.key === mobileStage);
+              const apps = grouped[mobileStage] ?? [];
+              if (!column) return null;
+              return (
+                <Card className="flex min-h-[12rem] flex-col">
+                  <div className="border-b border-slate-100 px-3 py-2.5">
+                    <h3 className="text-[12px] font-semibold text-slate-900">
+                      {column.label}
+                      <span className="ml-1.5 font-normal tabular-nums text-slate-400">
+                        ({apps.length})
+                      </span>
+                    </h3>
+                  </div>
+                  <div
+                    className={cn(
+                      "flex flex-1 flex-col gap-2 p-2",
+                      apps.length === 0 && "justify-center",
+                    )}
+                  >
+                    {apps.length === 0 ? (
+                      <p className="py-4 text-center text-[11px] text-slate-400">Empty</p>
+                    ) : (
+                      apps.map((app) => (
+                        <PipelineCard
+                          key={app.id}
+                          app={app}
+                          isAdmin={isAdmin}
+                          onAdvance={advance}
+                          onWithdraw={setWithdrawingApp}
+                          advancing={updating}
+                        />
+                      ))
+                    )}
+                  </div>
+                </Card>
+              );
+            })()}
+          </div>
+          <div className="hidden gap-3 md:grid md:grid-cols-2 xl:grid-cols-4">
+            {ADMISSION_PIPELINE_STATUSES.map((column) => (
+              <Card key={column.key} className="flex min-h-[12rem] flex-col">
+                <div className="border-b border-slate-100 px-3 py-2.5">
+                  <h3 className="text-[12px] font-semibold text-slate-900">
+                    {column.label}
+                    <span className="ml-1.5 font-normal tabular-nums text-slate-400">
+                      ({grouped[column.key]?.length ?? 0})
+                    </span>
+                  </h3>
+                </div>
+                <div
+                  className={cn(
+                    "flex flex-1 flex-col gap-2 p-2",
+                    grouped[column.key]?.length === 0 && "justify-center",
+                  )}
+                >
+                  {grouped[column.key]?.length === 0 ? (
+                    <p className="py-4 text-center text-[11px] text-slate-400">Empty</p>
+                  ) : (
+                    grouped[column.key].map((app) => (
+                      <PipelineCard
+                        key={app.id}
+                        app={app}
+                        isAdmin={isAdmin}
+                        onAdvance={advance}
+                        onWithdraw={setWithdrawingApp}
+                        advancing={updating}
+                      />
+                    ))
+                  )}
+                </div>
+              </Card>
+            ))}
+          </div>
+        </>
       )}
     </div>
   );

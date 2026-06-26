@@ -12,27 +12,35 @@ import { Icon } from "@/components/ui/Icon";
 import { Input } from "@/components/ui/Input";
 import { RefreshButton } from "@/components/ui/RefreshButton";
 import { PageLoader } from "@/components/ui/Spinner";
+import { PageToolbar, PageToolbarGroup } from "@/components/ui/PageToolbar";
 import { Select } from "@/components/ui/Select";
 import { useToast } from "@/components/ui/Toast";
+import { useConfirm } from "@/components/ui/Dialog";
 import { parseError } from "@/lib/apiError";
 import type { ClassOut } from "@/lib/types";
 import { useAppSelector } from "@/store/hooks";
 import { InlineAssignmentManager } from "@/components/domain/teachers/InlineAssignmentManager";
+import {
+  ALL_CLASS_LEVELS,
+  NURSERY_LEVELS,
+  PRIMARY_LEVELS,
+  SECTION_LABELS,
+} from "@/lib/schoolLevels";
 import {
   useCreateClassMutation,
   useCreateStreamMutation,
   useDeleteClassMutation,
   useDeleteStreamMutation,
   useListClassesQuery,
+  useSetupNurseryClassesMutation,
   useSetupPrimaryClassesMutation,
   useUpdateClassMutation,
   useUpdateStreamMutation,
 } from "@/store/api/skulpulseApi";
 
-const LEVELS = ["P1", "P2", "P3", "P4", "P5", "P6", "P7"] as const;
-
 function ClassPanel({ row }: { row: ClassOut }) {
   const { toast } = useToast();
+  const confirm = useConfirm();
   const isAdmin = useAppSelector((s) => s.auth.user?.role === "school_admin");
   const hasTeachers = useAppSelector((s) => s.auth.user?.modules.includes("teachers") ?? false);
   const [label, setLabel] = useState(row.label);
@@ -58,7 +66,13 @@ function ClassPanel({ row }: { row: ClassOut }) {
   }
 
   async function removeClass() {
-    if (!window.confirm(`Remove ${row.level} and all its streams?`)) return;
+    const ok = await confirm({
+      title: "Remove class",
+      description: `Remove ${row.level} and all its streams? Learners in this class may need reassignment.`,
+      confirmLabel: "Remove class",
+      tone: "danger",
+    });
+    if (!ok) return;
     try {
       await deleteClass(row.id).unwrap();
       toast(`${row.level} removed.`, "success");
@@ -98,7 +112,13 @@ function ClassPanel({ row }: { row: ClassOut }) {
   }
 
   async function removeStream(streamId: string, name: string) {
-    if (!window.confirm(`Remove stream ${name}?`)) return;
+    const ok = await confirm({
+      title: "Remove stream",
+      description: `Remove stream ${name} from ${row.level}?`,
+      confirmLabel: "Remove stream",
+      tone: "danger",
+    });
+    if (!ok) return;
     try {
       await deleteStream({ classId: row.id, streamId }).unwrap();
       toast("Stream removed.", "success");
@@ -127,28 +147,28 @@ function ClassPanel({ row }: { row: ClassOut }) {
       />
       <CardBody className="space-y-4">
         {isAdmin && (
-          <div className="grid gap-3 sm:grid-cols-[1fr_auto_auto] sm:items-end">
-            <FormField label="Display name">
-              <Input value={label} onChange={(e) => setLabel(e.target.value)} />
-            </FormField>
-            <label className="flex items-center gap-2 pb-2 text-[12px] text-slate-600">
-              <input
-                type="checkbox"
-                checked={active}
-                onChange={(e) => setActive(e.target.checked)}
-                className="rounded border-slate-300"
-              />
-              Class active
-            </label>
-            <div className="flex gap-2">
-              <Button size="sm" variant="secondary" loading={saving} onClick={saveClass}>
-                Save
-              </Button>
-              <Button size="sm" variant="ghost" loading={removing} onClick={removeClass}>
-                Remove
-              </Button>
+            <div className="flex flex-col gap-2 sm:grid sm:grid-cols-[1fr_auto_auto] sm:items-end">
+              <FormField label="Display name">
+                <Input value={label} onChange={(e) => setLabel(e.target.value)} />
+              </FormField>
+              <label className="flex items-center gap-2 pb-2 text-[12px] text-slate-600">
+                <input
+                  type="checkbox"
+                  checked={active}
+                  onChange={(e) => setActive(e.target.checked)}
+                  className="rounded border-slate-300"
+                />
+                Class active
+              </label>
+              <div className="flex gap-2">
+                <Button size="sm" variant="secondary" loading={saving} className="flex-1 sm:flex-none" onClick={saveClass}>
+                  Save
+                </Button>
+                <Button size="sm" variant="ghost" loading={removing} className="flex-1 sm:flex-none" onClick={removeClass}>
+                  Remove
+                </Button>
+              </div>
             </div>
-          </div>
         )}
 
         <div>
@@ -193,19 +213,20 @@ function ClassPanel({ row }: { row: ClassOut }) {
           )}
 
           {isAdmin && (
-            <div className="mt-3 flex max-w-xs gap-2">
+            <div className="mt-3 flex flex-col gap-2 sm:max-w-xs sm:flex-row">
               <Input
                 value={streamName}
                 onChange={(e) => setStreamName(e.target.value)}
                 placeholder="e.g. A, B, East"
                 maxLength={20}
-                className="h-8 text-[12px]"
+                className="h-8 flex-1 text-[12px]"
               />
               <Button
                 size="sm"
                 variant="secondary"
                 loading={addingStream}
                 disabled={!streamName.trim()}
+                className="w-full sm:w-auto"
                 onClick={addStream}
               >
                 Add stream
@@ -234,17 +255,30 @@ export function AcademicsClassesView() {
   const { toast } = useToast();
   const isAdmin = useAppSelector((s) => s.auth.user?.role === "school_admin");
   const { data: classes, isLoading, isError, refetch, isFetching } = useListClassesQuery();
-  const [setupPrimary, { isLoading: settingUp }] = useSetupPrimaryClassesMutation();
+  const [setupPrimary, { isLoading: settingUpPrimary }] = useSetupPrimaryClassesMutation();
+  const [setupNursery, { isLoading: settingUpNursery }] = useSetupNurseryClassesMutation();
   const [createClass, { isLoading: creating }] = useCreateClassMutation();
-  const [newLevel, setNewLevel] = useState<string>("P1");
+  const [newLevel, setNewLevel] = useState<string>("BABY");
 
   const existingLevels = new Set((classes ?? []).map((c) => c.level));
-  const missingLevels = LEVELS.filter((l) => !existingLevels.has(l));
+  const missingLevels = ALL_CLASS_LEVELS.filter((l) => !existingLevels.has(l));
+  const missingNursery = NURSERY_LEVELS.filter((l) => !existingLevels.has(l));
+  const missingPrimary = PRIMARY_LEVELS.filter((l) => !existingLevels.has(l));
 
   async function addAllPrimary() {
     try {
       await setupPrimary().unwrap();
       toast("P1–P7 classes created.", "success");
+    } catch (err) {
+      const p = parseError(err);
+      toast(p.message, "error", p.requestId);
+    }
+  }
+
+  async function addAllNursery() {
+    try {
+      await setupNursery().unwrap();
+      toast("Baby–Top nursery classes created.", "success");
     } catch (err) {
       const p = parseError(err);
       toast(p.message, "error", p.requestId);
@@ -270,7 +304,7 @@ export function AcademicsClassesView() {
   return (
     <div className="space-y-4 animate-fade-rise">
       {/* Toolbar */}
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+      <PageToolbar className="sm:justify-between">
         {count > 0 ? (
           <SettingsStatRow
             items={[
@@ -281,7 +315,7 @@ export function AcademicsClassesView() {
         ) : (
           <span />
         )}
-        <div className="flex flex-wrap items-end gap-2">
+        <PageToolbarGroup>
           {isAdmin && count > 0 && (
             <>
               {missingLevels.length > 0 && (
@@ -289,7 +323,7 @@ export function AcademicsClassesView() {
                   <Select
                     value={newLevel}
                     onChange={(e) => setNewLevel(e.target.value)}
-                    className="w-24"
+                    className="w-full sm:w-24"
                     aria-label="Class level"
                   >
                     {missingLevels.map((l) => (
@@ -298,22 +332,38 @@ export function AcademicsClassesView() {
                       </option>
                     ))}
                   </Select>
-                  <Button size="sm" variant="secondary" loading={creating} onClick={addOneClass}>
+                  <Button size="sm" variant="secondary" className="w-full sm:w-auto" loading={creating} onClick={addOneClass}>
                     <Icon name="plus" size={13} />
                     Add class
                   </Button>
                 </>
               )}
-              {count < 7 && (
-                <Button size="sm" loading={settingUp} onClick={addAllPrimary}>
+              {missingPrimary.length > 0 && (
+                <Button
+                  size="sm"
+                  className="w-full sm:w-auto"
+                  loading={settingUpPrimary}
+                  onClick={addAllPrimary}
+                >
                   Add P1–P7
+                </Button>
+              )}
+              {missingNursery.length > 0 && (
+                <Button
+                  size="sm"
+                  variant="secondary"
+                  className="w-full sm:w-auto"
+                  loading={settingUpNursery}
+                  onClick={addAllNursery}
+                >
+                  Add {SECTION_LABELS.nursery}
                 </Button>
               )}
             </>
           )}
           <RefreshButton onRefresh={refetch} isRefreshing={isFetching} label="Refresh classes" />
-        </div>
-      </div>
+        </PageToolbarGroup>
+      </PageToolbar>
 
       {count === 0 ? (
         <EmptyState
@@ -321,15 +371,21 @@ export function AcademicsClassesView() {
           title="No classes configured"
           description={
             isAdmin
-              ? "Create all primary levels P1–P7 in one step, then add streams where your school splits sections."
+              ? "Add nursery (Baby–Top) and/or primary (P1–P7), then add streams where your school splits sections."
               : "Ask your school administrator to set up classes."
           }
           action={
             isAdmin ? (
-              <Button size="sm" loading={settingUp} onClick={addAllPrimary}>
-                <Icon name="plus" size={13} />
-                Add P1–P7
-              </Button>
+              <div className="flex flex-col gap-2 sm:flex-row">
+                <Button size="sm" loading={settingUpNursery} onClick={addAllNursery}>
+                  <Icon name="plus" size={13} />
+                  Add {SECTION_LABELS.nursery}
+                </Button>
+                <Button size="sm" variant="secondary" loading={settingUpPrimary} onClick={addAllPrimary}>
+                  <Icon name="plus" size={13} />
+                  Add P1–P7
+                </Button>
+              </div>
             ) : undefined
           }
         />

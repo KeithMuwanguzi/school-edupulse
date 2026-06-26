@@ -14,10 +14,11 @@ import {
   useUpdateSubjectMutation,
 } from "@/store/api/skulpulseApi";
 import { useToast } from "@/components/ui/Toast";
+import { useConfirm } from "@/components/ui/Dialog";
 import { useAppSelector } from "@/store/hooks";
 import { InlineAssignmentManager } from "@/components/domain/teachers/InlineAssignmentManager";
 
-const CYCLE_ORDER: NcdcCycle[] = ["cycle_1", "cycle_2", "cycle_3"];
+const CYCLE_ORDER: NcdcCycle[] = ["ecd", "cycle_1", "cycle_2", "cycle_3"];
 
 interface SubjectRowProps {
   subject: SubjectOut;
@@ -25,6 +26,7 @@ interface SubjectRowProps {
 
 export function SubjectRow({ subject }: SubjectRowProps) {
   const { toast } = useToast();
+  const confirm = useConfirm();
   const [editing, setEditing] = useState(false);
   const [showTeachers, setShowTeachers] = useState(false);
   const [name, setName] = useState(subject.name);
@@ -79,7 +81,13 @@ export function SubjectRow({ subject }: SubjectRowProps) {
   }
 
   async function remove() {
-    if (!window.confirm(`Remove ${subject.code}?`)) return;
+    const ok = await confirm({
+      title: "Remove subject",
+      description: `Remove ${subject.code} from your catalogue? This cannot be undone.`,
+      confirmLabel: "Remove",
+      tone: "danger",
+    });
+    if (!ok) return;
     try {
       await deleteSubject(subject.id).unwrap();
       toast("Subject removed.", "success");
@@ -92,7 +100,7 @@ export function SubjectRow({ subject }: SubjectRowProps) {
   if (!editing) {
     return (
       <div className="border-b border-slate-50 last:border-0">
-        <div className="group flex items-center gap-2 px-3 py-1.5 hover:bg-slate-50/60">
+        <div className="group hidden items-center gap-2 px-3 py-1.5 hover:bg-slate-50/60 md:flex">
           <span className="w-9 shrink-0 font-mono text-[10px] font-medium text-slate-400">
             {subject.code}
           </span>
@@ -141,8 +149,49 @@ export function SubjectRow({ subject }: SubjectRowProps) {
             </button>
           </div>
         </div>
+
+        <div className="rounded-lg border border-slate-200 bg-white p-3 md:hidden">
+          <div className="flex items-start justify-between gap-2">
+            <div className="min-w-0">
+              <p className="font-mono text-[10px] text-slate-400">{subject.code}</p>
+              <p className={`font-medium ${subject.is_active ? "text-slate-900" : "text-slate-400"}`}>
+                {subject.name}
+              </p>
+              <p className="mt-0.5 text-[11px] text-slate-500">{formatCycleLabels(subject.ncdc_cycles)}</p>
+            </div>
+            <div className="flex shrink-0 flex-col items-end gap-1">
+              {subject.is_core && (
+                <span className="rounded-full bg-brand-50 px-1.5 py-px text-[9px] font-medium text-brand-700 ring-1 ring-brand-100">
+                  Core
+                </span>
+              )}
+              {!subject.is_active && (
+                <span className="text-[10px] text-slate-400">Inactive</span>
+              )}
+            </div>
+          </div>
+          <div className="mt-3 flex gap-2">
+            {hasTeachers && (
+              <Button
+                size="sm"
+                variant={showTeachers ? "secondary" : "ghost"}
+                className="flex-1"
+                onClick={() => setShowTeachers((v) => !v)}
+              >
+                Teachers
+              </Button>
+            )}
+            <Button size="sm" variant="secondary" className="flex-1" onClick={() => setEditing(true)}>
+              Edit
+            </Button>
+            <Button size="sm" variant="ghost" className="flex-1" onClick={() => void remove()} disabled={deleting}>
+              Remove
+            </Button>
+          </div>
+        </div>
+
         {hasTeachers && showTeachers && (
-          <div className="px-3 pb-2 pl-9">
+          <div className="px-3 pb-2 md:pl-9">
             <InlineAssignmentManager
               scope={{ kind: "subject", subjectId: subject.id, cycles: subject.ncdc_cycles }}
               isAdmin={isAdmin}
@@ -202,11 +251,11 @@ export function SubjectRow({ subject }: SubjectRowProps) {
             </button>
           );
         })}
-        <div className="ml-auto flex gap-1">
-          <Button size="sm" variant="ghost" onClick={cancel}>
+        <div className="ml-auto flex w-full flex-wrap gap-1 sm:w-auto">
+          <Button size="sm" variant="ghost" className="flex-1 sm:flex-none" onClick={cancel}>
             Cancel
           </Button>
-          <Button size="sm" variant="secondary" loading={saving} onClick={() => void save()}>
+          <Button size="sm" variant="secondary" loading={saving} className="flex-1 sm:flex-none" onClick={() => void save()}>
             Save
           </Button>
         </div>

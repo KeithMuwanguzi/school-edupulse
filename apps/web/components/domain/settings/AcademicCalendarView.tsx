@@ -10,6 +10,7 @@ import { FormField } from "@/components/ui/FormField";
 import { Icon } from "@/components/ui/Icon";
 import { Input } from "@/components/ui/Input";
 import { PageLoader } from "@/components/ui/Spinner";
+import { PageToolbar, PageToolbarGroup } from "@/components/ui/PageToolbar";
 import { RefreshButton } from "@/components/ui/RefreshButton";
 import { useToast } from "@/components/ui/Toast";
 import {
@@ -38,6 +39,66 @@ import {
 
 function termPalette(termNumber: number) {
   return TERM_PALETTE[(termNumber - 1) % TERM_PALETTE.length];
+}
+
+/** Mobile-friendly term list (replaces the 12-month mini calendar grid on small screens). */
+function YearTermAgenda({ terms }: { terms: TermOut[] }) {
+  const today = new Date();
+
+  return (
+    <div className="space-y-2">
+      {terms.map((term) => {
+        const palette = termPalette(term.term_number);
+        const start = parseIsoDate(term.starts_on);
+        const end = parseIsoDate(term.ends_on);
+        const isActive = term.status === "active";
+        const inRange =
+          start && end && today >= start && today <= end && isActive;
+        const progress = termProgress(term.starts_on, term.ends_on);
+
+        return (
+          <div
+            key={term.id}
+            className={cn(
+              "rounded-lg border bg-white p-3 shadow-card",
+              isActive ? "border-brand-200 ring-1 ring-brand-100" : "border-slate-200",
+            )}
+          >
+            <div className="flex items-start gap-3">
+              <div className={cn("mt-0.5 h-8 w-1 shrink-0 rounded-full", palette.bar)} aria-hidden />
+              <div className="min-w-0 flex-1">
+                <div className="flex items-start justify-between gap-2">
+                  <div>
+                    <h4 className="text-[13px] font-semibold text-slate-900">{term.label}</h4>
+                    <p className="mt-0.5 text-[11px] text-slate-500">
+                      {formatDisplayDate(term.starts_on)} – {formatDisplayDate(term.ends_on)}
+                    </p>
+                  </div>
+                  <Badge tone={isActive ? "green" : term.status === "upcoming" ? "blue" : "neutral"}>
+                    {term.status}
+                  </Badge>
+                </div>
+                {inRange && (
+                  <div className="mt-2">
+                    <div className="flex justify-between text-[10px] text-slate-500">
+                      <span>Term progress</span>
+                      <span>{progress}%</span>
+                    </div>
+                    <div className="mt-1 h-1.5 overflow-hidden rounded-full bg-slate-100">
+                      <div
+                        className={cn("h-full rounded-full transition-all", palette.bar)}
+                        style={{ width: `${progress}%` }}
+                      />
+                    </div>
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+        );
+      })}
+    </div>
+  );
 }
 
 function YearMiniCalendar({
@@ -83,7 +144,7 @@ function YearMiniCalendar({
 
   return (
     <div className="space-y-3">
-      <div className="flex flex-wrap gap-x-4 gap-y-1 text-[10px] text-slate-500">
+      <div className="hidden flex-wrap gap-x-4 gap-y-1 text-[10px] text-slate-500 md:flex">
         <span className="inline-flex items-center gap-1.5">
           <span className="relative flex h-4 w-4 items-center justify-center rounded bg-brand-50 text-[8px] text-brand-800">
             1
@@ -108,7 +169,7 @@ function YearMiniCalendar({
         </span>
       </div>
 
-      <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4">
+      <div className="hidden gap-3 sm:grid-cols-2 md:grid xl:grid-cols-3 2xl:grid-cols-4">
       {MONTHS.map((label, monthIndex) => {
         const dim = daysInMonth(calendarYear, monthIndex);
         const offset = firstWeekday(calendarYear, monthIndex);
@@ -205,9 +266,10 @@ function TermTimeline({
 
   return (
     <div>
-      <div className="relative h-12 rounded-lg border border-slate-200 bg-slate-50/80">
-        <div className="absolute inset-x-3 top-1/2 h-px -translate-y-1/2 bg-slate-200" />
-        {terms.map((term) => {
+      <div className="overflow-x-auto pb-1 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+        <div className="relative min-w-[280px] h-12 rounded-lg border border-slate-200 bg-slate-50/80">
+          <div className="absolute inset-x-3 top-1/2 h-px -translate-y-1/2 bg-slate-200" />
+          {terms.map((term) => {
           const start = parseIsoDate(term.starts_on);
           const end = parseIsoDate(term.ends_on);
           if (!start || !end) return null;
@@ -236,6 +298,7 @@ function TermTimeline({
           <span>Jan</span>
           <span>Jun</span>
           <span>Dec</span>
+        </div>
         </div>
       </div>
       <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1">
@@ -413,7 +476,7 @@ function YearWorkspace({ year }: { year: AcademicYearWithTerms }) {
               : "Choose an active term below when you are ready to start."
           }
           action={
-            <div className="flex items-center gap-2">
+            <div className="flex flex-col items-stretch gap-2 sm:flex-row sm:items-center">
               <StatusBadge status={year.status} />
               {year.status !== "active" && (
                 <Button size="sm" variant="secondary" loading={activating} onClick={setYearActive}>
@@ -442,7 +505,7 @@ function YearWorkspace({ year }: { year: AcademicYearWithTerms }) {
 
       <div>
         <h3 className="mb-2 text-[12px] font-semibold text-slate-800">Manage terms</h3>
-        <div className="grid gap-3 lg:grid-cols-3">
+        <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-3">
           {year.terms.map((term) => (
             <TermCard key={term.id} year={year} term={term} />
           ))}
@@ -455,7 +518,12 @@ function YearWorkspace({ year }: { year: AcademicYearWithTerms }) {
           description={`Term dates across ${year.label}. Today is highlighted.`}
         />
         <CardBody>
-          <YearMiniCalendar yearLabel={year.label} terms={year.terms} />
+          <div className="md:hidden">
+            <YearTermAgenda terms={year.terms} />
+          </div>
+          <div className="hidden md:block">
+            <YearMiniCalendar yearLabel={year.label} terms={year.terms} />
+          </div>
         </CardBody>
       </Card>
     </div>
@@ -493,30 +561,31 @@ export function AcademicCalendarView() {
 
   return (
     <div className="space-y-4">
-      {/* Toolbar: year switcher + add year */}
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
-        <div className="flex flex-wrap items-center gap-1.5">
-          {sortedYears.map((y) => (
-            <button
-              key={y.id}
-              type="button"
-              onClick={() => setSelectedId(y.id)}
-              className={cn(
-                "inline-flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-[12px] font-medium transition",
-                selected?.id === y.id
-                  ? "border-brand-300 bg-brand-50 text-brand-900"
-                  : "border-slate-200 bg-white text-slate-600 hover:border-slate-300",
-              )}
-            >
-              {y.label}
-              {y.status === "active" && (
-                <span className="h-1.5 w-1.5 rounded-full bg-brand-500" title="Active year" />
-              )}
-            </button>
-          ))}
+      <div className="flex flex-col gap-3">
+        <div className="-mx-0.5 overflow-x-auto px-0.5 pb-0.5 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+          <div className="inline-flex min-w-max gap-1.5">
+            {sortedYears.map((y) => (
+              <button
+                key={y.id}
+                type="button"
+                onClick={() => setSelectedId(y.id)}
+                className={cn(
+                  "inline-flex shrink-0 items-center gap-1.5 rounded-lg border px-3 py-2 text-[12px] font-medium transition",
+                  selected?.id === y.id
+                    ? "border-brand-300 bg-brand-50 text-brand-900"
+                    : "border-slate-200 bg-white text-slate-600 hover:border-slate-300",
+                )}
+              >
+                {y.label}
+                {y.status === "active" && (
+                  <span className="h-1.5 w-1.5 rounded-full bg-brand-500" title="Active year" />
+                )}
+              </button>
+            ))}
+          </div>
         </div>
-        <div className="flex items-end gap-2">
-          <div className="w-24">
+        <PageToolbar className="sm:justify-between">
+          <PageToolbarGroup className="w-full sm:max-w-xs">
             <FormField label="New year" required>
               <Input
                 value={newLabel}
@@ -525,13 +594,15 @@ export function AcademicCalendarView() {
                 maxLength={4}
               />
             </FormField>
-          </div>
-          <Button size="sm" loading={creating} onClick={addYear}>
-            <Icon name="plus" size={13} />
-            Add year
-          </Button>
-          <RefreshButton onRefresh={refetch} isRefreshing={isFetching} label="Refresh calendar" />
-        </div>
+          </PageToolbarGroup>
+          <PageToolbarGroup>
+            <Button size="sm" loading={creating} onClick={addYear}>
+              <Icon name="plus" size={13} />
+              Add year
+            </Button>
+            <RefreshButton onRefresh={refetch} isRefreshing={isFetching} label="Refresh calendar" />
+          </PageToolbarGroup>
+        </PageToolbar>
       </div>
 
       {sortedYears.length === 0 ? (

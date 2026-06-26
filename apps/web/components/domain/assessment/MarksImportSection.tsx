@@ -161,11 +161,11 @@ export function MarksImportSection({
 
   return (
     <div className="space-y-3 rounded-xl border border-slate-200/80 bg-slate-50/60 p-3">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
         <p className="text-[13px] font-semibold text-slate-800">
           Import marks for {subjectName} (out of {maxMark})
         </p>
-        <Button size="sm" variant="ghost" onClick={onClose}>
+        <Button size="sm" variant="ghost" className="w-full shrink-0 sm:w-auto" onClick={onClose}>
           Close
         </Button>
       </div>
@@ -226,18 +226,31 @@ export function MarksImportSection({
       )}
 
       {ready && (
-        <div className="flex gap-2">
-          <Button size="sm" variant="secondary" loading={isLoading} onClick={() => void run(true)}>
+        <div className="flex flex-col gap-2 sm:flex-row">
+          <Button size="sm" variant="secondary" loading={isLoading} className="w-full sm:w-auto" onClick={() => void run(true)}>
             Validate
           </Button>
-          <Button size="sm" loading={isLoading} onClick={() => void run(false)}>
+          <Button size="sm" loading={isLoading} className="w-full sm:w-auto" onClick={() => void run(false)}>
             Import marks
           </Button>
         </div>
       )}
 
       {results && (
-        <div className="overflow-x-auto">
+        <>
+          <div className="space-y-2 md:hidden">
+            {results.map((r) => (
+              <div key={r.line} className="rounded-lg border border-slate-200 bg-white p-3 text-[12px]">
+                <div className="flex items-start justify-between gap-2">
+                  <p className="font-medium text-slate-900">{r.identifier}</p>
+                  <Badge tone={STATUS_TONE[r.status] ?? "neutral"}>{r.status}</Badge>
+                </div>
+                <p className="mt-1 text-slate-500">Row {r.line} · Score {r.score ?? "—"}</p>
+                {r.message && <p className="mt-1 text-[11px] text-slate-400">{r.message}</p>}
+              </div>
+            ))}
+          </div>
+          <div className="hidden overflow-x-auto md:block">
           <Table>
             <THead>
               <TR>
@@ -262,7 +275,8 @@ export function MarksImportSection({
               ))}
             </TBody>
           </Table>
-        </div>
+          </div>
+        </>
       )}
     </div>
   );

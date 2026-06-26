@@ -56,241 +56,212 @@ export function ReportCardPreview({ data }: { data: ReportCardPreviewOut }) {
   ].filter(Boolean);
 
   return (
-    <div className="report-card-page mx-auto w-full max-w-[820px]">
-      <article className="report-card-print relative flex min-h-[1120px] flex-col bg-white text-[12px] leading-snug text-slate-900 shadow-xl ring-1 ring-slate-200 print:shadow-none print:ring-0">
-        {/* Decorative frame */}
-        <div className="pointer-events-none absolute inset-2 rounded-[6px] border-2 border-brand-700/70" />
-        <div className="pointer-events-none absolute inset-[14px] rounded-[4px] border border-brand-700/30" />
+    <div className="report-card-page">
+      <article className="report-card-print">
+        <div className="report-card-frame" aria-hidden />
 
-        <div className="relative flex flex-1 flex-col px-8 py-7">
-          {/* Header */}
-          <header className="flex items-center gap-4 border-b-2 border-brand-700/80 pb-4">
-            <SchoolBadge name={data.school.name} badgeUrl={data.school.badge_url} size="xl" />
-            <div className="flex-1 text-center">
-              <h1 className="font-serif text-[22px] font-bold uppercase leading-tight tracking-wide text-brand-900">
-                {data.school.name}
-              </h1>
+        <div className="report-card-body">
+          {/* Header — symmetric crest + identity */}
+          <header className="report-card-header">
+            <SchoolBadge name={data.school.name} badgeUrl={data.school.badge_url} size="lg" />
+            <div className="report-card-header-text">
+              <h1 className="report-card-school-name">{data.school.name}</h1>
               {contactBits.length ? (
-                <p className="mt-1 text-[10.5px] text-slate-600">{contactBits.join("  •  ")}</p>
+                <div className="report-card-contact">
+                  {contactBits.map((bit) => (
+                    <span key={bit}>{bit}</span>
+                  ))}
+                </div>
               ) : null}
               {data.school.motto ? (
-                <p className="mt-1 text-[10.5px] font-medium italic text-brand-700">
-                  &ldquo;{data.school.motto}&rdquo;
-                </p>
+                <p className="report-card-motto">&ldquo;{data.school.motto}&rdquo;</p>
               ) : null}
             </div>
-            {/* spacer to balance the badge for centered title */}
-            <div className="h-20 w-20 shrink-0" aria-hidden />
+            <div className="report-card-header-crest" aria-hidden>
+              <SchoolBadge name={data.school.name} badgeUrl={data.school.badge_url} size="lg" />
+            </div>
           </header>
 
-          <div className="mt-3 flex justify-center">
-            <span className="rounded-full border border-brand-700/40 bg-brand-50 px-5 py-1 text-[12px] font-bold uppercase tracking-[0.22em] text-brand-800">
-              Terminal Report
-            </span>
+          <div className="report-card-title-band">
+            <span>Terminal Report</span>
           </div>
 
-          {/* Pupil identity */}
-          <section className="mt-4 grid grid-cols-2 gap-x-8 gap-y-1.5 rounded-md bg-slate-50/80 px-4 py-3 text-[12px]">
-            <IdField label="Name" value={studentName} wide />
-            <IdField label="Pupil No." value={data.student.student_number} />
-            <IdField label="Class" value={classLine || "—"} />
-            <IdField label="Section" value={data.level_section} />
-            <IdField label="Term" value={`${data.term.label}`} />
-            <IdField label="Year" value={data.term.academic_year_label} />
+          {/* Learner identity — formal definition grid */}
+          <section className="report-card-identity">
+            <div className="report-card-identity-row report-card-identity-row--wide">
+              <span className="report-card-identity-label">Name</span>
+              <span className="report-card-identity-value">{studentName}</span>
+            </div>
+            <div className="report-card-identity-grid">
+              <div className="report-card-identity-row">
+                <span className="report-card-identity-label">Pupil No.</span>
+                <span className="report-card-identity-value">{data.student.student_number}</span>
+              </div>
+              <div className="report-card-identity-row">
+                <span className="report-card-identity-label">Class</span>
+                <span className="report-card-identity-value">{classLine || "—"}</span>
+              </div>
+              <div className="report-card-identity-row">
+                <span className="report-card-identity-label">Section</span>
+                <span className="report-card-identity-value">{data.level_section}</span>
+              </div>
+              <div className="report-card-identity-row">
+                <span className="report-card-identity-label">Term</span>
+                <span className="report-card-identity-value">{data.term.label}</span>
+              </div>
+              <div className="report-card-identity-row">
+                <span className="report-card-identity-label">Year</span>
+                <span className="report-card-identity-value">{data.term.academic_year_label}</span>
+              </div>
+            </div>
           </section>
 
           {!data.marks_available ? (
-            <p className="mt-4 rounded-md border border-gold-300 bg-gold-50 px-3 py-2 text-[11px] text-gold-800">
-              Assessment marks have not been recorded for this term yet. The layout below reflects the
-              subjects and assessment sets configured for this class; scores will populate once marks
-              are entered.
+            <p className="report-card-notice">
+              Assessment marks have not been recorded for this term. Scores will appear once marks
+              are entered under Assessment.
             </p>
           ) : null}
 
-          {/* Assessment-set matrix */}
           {hasSetMatrix ? (
-            <section className="mt-5">
-              <SectionTitle>Pupil&apos;s Assessment Record</SectionTitle>
-              <div className="mt-2 overflow-x-auto">
-                <table className="w-full border-collapse text-[11px]">
-                  <thead>
-                    <tr className="bg-brand-700 text-white">
-                      <th className="border border-brand-800 px-2 py-1.5 text-left font-semibold">
-                        Assessment
-                      </th>
-                      {lines.map((line) => (
-                        <th
-                          key={line.subject_id}
-                          className="border border-brand-800 px-2 py-1.5 text-center font-semibold"
-                          title={line.subject_name}
-                        >
-                          {line.subject_code}
-                        </th>
-                      ))}
-                      <th className="border border-brand-800 px-2 py-1.5 text-center font-semibold">
-                        Total
-                      </th>
-                      <th className="border border-brand-800 px-2 py-1.5 text-center font-semibold">
-                        Avg %
-                      </th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {totals.map(({ set, total, avg }, idx) => (
-                      <tr key={set.set_id} className={idx % 2 ? "bg-slate-50" : "bg-white"}>
-                        <td className="border border-slate-300 px-2 py-1.5 font-semibold text-slate-700">
-                          {set.name}
-                          <span className="ml-1 font-normal text-slate-400">/{set.max_mark}</span>
-                        </td>
-                        {lines.map((line) => (
-                          <td
-                            key={line.subject_id}
-                            className="border border-slate-300 px-2 py-1.5 text-center tabular-nums"
-                          >
-                            {fmt(setScore(line, set.set_id))}
-                          </td>
-                        ))}
-                        <td className="border border-slate-300 px-2 py-1.5 text-center font-semibold tabular-nums">
-                          {fmt(total)}
-                        </td>
-                        <td className="border border-slate-300 px-2 py-1.5 text-center font-semibold tabular-nums">
-                          {fmt(avg)}
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            </section>
-          ) : null}
-
-          {/* End of term performance + grading key */}
-          <section className="mt-5 grid gap-4 lg:grid-cols-[1fr_180px]">
-            <div>
-              <SectionTitle>End of Term Performance</SectionTitle>
-              <table className="mt-2 w-full border-collapse text-[11.5px]">
+            <section className="report-card-section">
+              <SectionTitle>Pupil&apos;s assessment record</SectionTitle>
+              <table className="report-card-table report-card-table--compact">
                 <thead>
-                  <tr className="bg-brand-700 text-white">
-                    <th className="border border-brand-800 px-2 py-1.5 text-left font-semibold">
-                      Subject
-                    </th>
-                    <th className="border border-brand-800 px-2 py-1.5 text-center font-semibold">
-                      Score %
-                    </th>
-                    <th className="border border-brand-800 px-2 py-1.5 text-center font-semibold">
-                      {isPle ? "Grade" : "Agg"}
-                    </th>
-                    <th className="border border-brand-800 px-2 py-1.5 text-left font-semibold">
-                      Comment
-                    </th>
+                  <tr>
+                    <th className="report-card-table-sticky">Assessment</th>
+                    {lines.map((line) => (
+                      <th key={line.subject_id} title={line.subject_name}>
+                        {line.subject_code}
+                      </th>
+                    ))}
+                    <th>Total</th>
+                    <th>Avg %</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {lines.map((line, idx) => (
-                    <tr key={line.subject_id} className={idx % 2 ? "bg-slate-50" : "bg-white"}>
-                      <td className="border border-slate-300 px-2 py-1.5 font-medium">
+                  {totals.map(({ set, total, avg }) => (
+                    <tr key={set.set_id}>
+                      <td className="report-card-table-sticky">
+                        {set.name}
+                        <span className="report-card-muted"> /{set.max_mark}</span>
+                      </td>
+                      {lines.map((line) => (
+                        <td key={line.subject_id} className="report-card-num">
+                          {fmt(setScore(line, set.set_id))}
+                        </td>
+                      ))}
+                      <td className="report-card-num report-card-strong">{fmt(total)}</td>
+                      <td className="report-card-num report-card-strong">{fmt(avg)}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </section>
+          ) : null}
+
+          <section className="report-card-section report-card-performance">
+            <div className="report-card-performance-main">
+              <SectionTitle>End of term performance</SectionTitle>
+              <table className="report-card-table">
+                <thead>
+                  <tr>
+                    <th>Subject</th>
+                    <th>Score %</th>
+                    <th>{isPle ? "Grade" : "Agg"}</th>
+                    <th>Comment</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {lines.map((line) => (
+                    <tr key={line.subject_id}>
+                      <td>
                         {line.subject_name}
                         {line.is_core ? (
-                          <span className="ml-1 text-[9px] font-semibold uppercase text-brand-600">
-                            core
-                          </span>
+                          <span className="report-card-core-tag">core</span>
                         ) : null}
                       </td>
-                      <td className="border border-slate-300 px-2 py-1.5 text-center tabular-nums">
-                        {fmt(line.ca_score)}
-                      </td>
-                      <td className="border border-slate-300 px-2 py-1.5 text-center font-semibold tabular-nums">
+                      <td className="report-card-num">{fmt(line.ca_score)}</td>
+                      <td className="report-card-num report-card-strong">
                         {line.grade ?? fmt(line.aggregate_points)}
                       </td>
-                      <td className="border border-slate-300 px-2 py-1.5 text-slate-600">
-                        {line.comment ?? "—"}
-                      </td>
+                      <td className="report-card-comment-cell">{line.comment ?? "—"}</td>
                     </tr>
                   ))}
                   {data.marks_available ? (
-                    <tr className="bg-brand-50 font-semibold">
-                      <td className="border border-slate-300 px-2 py-1.5 uppercase tracking-wide">
-                        Total
-                      </td>
-                      <td className="border border-slate-300 px-2 py-1.5 text-center tabular-nums">
-                        {fmt(data.total_marks)}
-                      </td>
-                      <td className="border border-slate-300 px-2 py-1.5 text-center tabular-nums">
+                    <tr className="report-card-total-row">
+                      <td>Total</td>
+                      <td className="report-card-num">{fmt(data.total_marks)}</td>
+                      <td className="report-card-num">
                         {fmt(data.total_aggregate ?? data.aggregate)}
                       </td>
-                      <td className="border border-slate-300 px-2 py-1.5" />
+                      <td />
                     </tr>
                   ) : null}
                 </tbody>
               </table>
 
-              {/* Summary chips */}
-              <div className="mt-3 grid grid-cols-3 gap-2 text-center">
-                <SummaryChip label="Average" value={fmt(data.average_score, "%")} />
-                <SummaryChip label="Aggregate" value={fmt(data.total_aggregate ?? data.aggregate)} />
-                <SummaryChip label="Division" value={data.division_label ?? "—"} highlight />
-              </div>
+              {data.marks_available ? (
+                <div className="report-card-summary-bar">
+                  <SummaryStat label="Average" value={fmt(data.average_score, "%")} />
+                  <SummaryStat label="Aggregate" value={fmt(data.total_aggregate ?? data.aggregate)} />
+                  <SummaryStat label="Division" value={data.division_label ?? "—"} emphasis />
+                </div>
+              ) : null}
             </div>
 
-            {/* Grading key */}
-            <aside className="self-start rounded-md border border-slate-300 bg-slate-50/70 p-3">
-              <p className="mb-2 text-center text-[10px] font-bold uppercase tracking-[0.14em] text-brand-800">
-                Grading Key
-              </p>
+            <aside className="report-card-sidebar">
+              <p className="report-card-sidebar-title">Grading key</p>
               {data.grading_key.length ? (
-                <ul className="space-y-1 text-[10.5px]">
+                <ul className="report-card-grading-list">
                   {data.grading_key.map((g) => (
-                    <li key={g.label} className="flex items-center justify-between gap-2">
-                      <span className="font-semibold text-slate-700">{g.label}</span>
-                      <span className="tabular-nums text-slate-500">
+                    <li key={g.label}>
+                      <span>{g.label}</span>
+                      <span className="report-card-num">
                         {g.min_mark}–{g.max_mark}
                       </span>
                     </li>
                   ))}
                 </ul>
               ) : (
-                <p className="text-center text-[10px] text-slate-400">
-                  Configure grading bands in Settings.
-                </p>
+                <p className="report-card-muted">Configure bands in Settings → Grading.</p>
               )}
               {data.attendance ? (
-                <div className="mt-3 border-t border-slate-200 pt-2 text-[10.5px]">
-                  <p className="font-semibold text-slate-700">Attendance</p>
-                  <p className="text-slate-500">
-                    {data.attendance.present_days}/{data.attendance.total_days} days (
-                    {data.attendance.percentage}%)
+                <div className="report-card-attendance">
+                  <p className="report-card-sidebar-subtitle">Attendance</p>
+                  <p className="report-card-muted">
+                    {data.attendance.present_days}/{data.attendance.total_days} days ·{" "}
+                    {data.attendance.percentage}%
                   </p>
                 </div>
               ) : null}
             </aside>
           </section>
 
-          {/* Comments */}
-          <section className="mt-5 space-y-2 text-[11.5px]">
-            <CommentLine
-              role="Class Teacher's Report"
+          <section className="report-card-section report-card-comments">
+            <CommentBlock
+              role="Class teacher"
               comment={data.class_teacher_comment}
               status={data.comments_status}
             />
-            <CommentLine
-              role="Head Teacher's Report"
+            <CommentBlock
+              role="Head teacher"
               comment={data.head_teacher_comment}
               status={data.comments_status}
             />
           </section>
 
-          {/* Footer: next term, fees, requirements */}
           {data.footer &&
           (data.footer.next_term_label ||
             data.footer.next_term_note ||
             data.footer.term_fees_summary ||
             data.footer.requirements_text) ? (
-            <section className="mt-5 rounded border border-slate-200 bg-slate-50/60 px-4 py-3 text-[11px] text-slate-700">
-              <p className="font-semibold uppercase tracking-wide text-slate-500">Important notes</p>
-              <ul className="mt-2 space-y-1.5">
+            <section className="report-card-section report-card-notes">
+              <p className="report-card-notes-title">Important notes</p>
+              <ul>
                 {data.footer.next_term_label ? (
                   <li>
-                    <span className="font-medium">Next term:</span> {data.footer.next_term_label}
+                    <strong>Next term:</strong> {data.footer.next_term_label}
                     {data.footer.next_term_starts_on
                       ? ` · starts ${new Date(data.footer.next_term_starts_on).toLocaleDateString()}`
                       : ""}
@@ -298,40 +269,33 @@ export function ReportCardPreview({ data }: { data: ReportCardPreviewOut }) {
                   </li>
                 ) : data.footer.next_term_note ? (
                   <li>
-                    <span className="font-medium">Next term:</span> {data.footer.next_term_note}
+                    <strong>Next term:</strong> {data.footer.next_term_note}
                   </li>
                 ) : null}
                 {data.footer.term_fees_summary ? (
                   <li>
-                    <span className="font-medium">Fees:</span> {data.footer.term_fees_summary}
+                    <strong>Fees:</strong> {data.footer.term_fees_summary}
                   </li>
                 ) : null}
                 {data.footer.requirements_text ? (
                   <li>
-                    <span className="font-medium">Requirements:</span>{" "}
-                    {data.footer.requirements_text}
+                    <strong>Requirements:</strong> {data.footer.requirements_text}
                   </li>
                 ) : null}
               </ul>
             </section>
           ) : null}
 
-          {/* Footer: signatures + meta */}
-          <footer className="mt-auto pt-6">
-            <div className="grid grid-cols-2 gap-8 text-[11px]">
-              <SignatureLine label="Class Teacher" name={null} />
-              <SignatureLine label="Head Teacher" name={data.school.head_teacher_name} />
+          <footer className="report-card-footer">
+            <div className="report-card-signatures">
+              <SignatureBlock label="Class teacher" />
+              <SignatureBlock label="Head teacher" name={data.school.head_teacher_name} />
             </div>
-            <div className="mt-4 flex flex-wrap items-center justify-between gap-2 border-t border-slate-200 pt-2 text-[9.5px] text-slate-500">
+            <div className="report-card-meta">
               <span>
-                Generated {new Date(data.generated_at).toLocaleDateString()} · This report is invalid
-                without the school&apos;s official stamp and signature.
+                Generated {new Date(data.generated_at).toLocaleDateString()} · Invalid without
+                official stamp and signature
               </span>
-              {data.school.motto ? (
-                <span className="font-medium italic text-brand-700">
-                  &ldquo;{data.school.motto}&rdquo;
-                </span>
-              ) : null}
             </div>
           </footer>
         </div>
@@ -340,53 +304,28 @@ export function ReportCardPreview({ data }: { data: ReportCardPreviewOut }) {
   );
 }
 
-function IdField({
-  label,
-  value,
-  wide,
-}: {
-  label: string;
-  value: string;
-  wide?: boolean;
-}) {
-  return (
-    <div className={wide ? "col-span-2" : ""}>
-      <span className="text-[10px] font-semibold uppercase tracking-wide text-slate-500">
-        {label}:{" "}
-      </span>
-      <span className="font-semibold text-slate-900">{value}</span>
-    </div>
-  );
-}
-
 function SectionTitle({ children }: { children: ReactNode }) {
-  return (
-    <h2 className="text-[12px] font-bold uppercase tracking-[0.12em] text-brand-800">{children}</h2>
-  );
+  return <h2 className="report-card-section-title">{children}</h2>;
 }
 
-function SummaryChip({
+function SummaryStat({
   label,
   value,
-  highlight,
+  emphasis,
 }: {
   label: string;
   value: string;
-  highlight?: boolean;
+  emphasis?: boolean;
 }) {
   return (
-    <div
-      className={`rounded-md border px-2 py-1.5 ${
-        highlight ? "border-brand-300 bg-brand-50" : "border-slate-200 bg-slate-50"
-      }`}
-    >
-      <p className="text-[9px] font-semibold uppercase tracking-wide text-slate-500">{label}</p>
-      <p className="text-[13px] font-bold text-slate-900">{value}</p>
+    <div className={emphasis ? "report-card-summary-stat report-card-summary-stat--emphasis" : "report-card-summary-stat"}>
+      <span className="report-card-summary-label">{label}</span>
+      <span className="report-card-summary-value">{value}</span>
     </div>
   );
 }
 
-function CommentLine({
+function CommentBlock({
   role,
   comment,
   status,
@@ -402,22 +341,20 @@ function CommentLine({
         ? "Configure grading bands in Settings → Grading."
         : "—";
   return (
-    <div className="flex gap-2">
-      <span className="shrink-0 font-bold text-slate-700">{role}:</span>
-      <span className="min-h-[1.2em] flex-1 border-b border-dotted border-slate-300 text-slate-700">
-        {comment ?? fallback}
-      </span>
+    <div className="report-card-comment">
+      <p className="report-card-comment-role">{role}</p>
+      <p className="report-card-comment-text">{comment ?? fallback}</p>
     </div>
   );
 }
 
-function SignatureLine({ label, name }: { label: string; name: string | null | undefined }) {
+function SignatureBlock({ label, name }: { label: string; name?: string | null }) {
   return (
-    <div>
-      <div className="h-8 border-b border-slate-400" />
-      <p className="mt-1 text-[10px] font-semibold uppercase tracking-wide text-slate-500">
+    <div className="report-card-signature">
+      <div className="report-card-signature-line" />
+      <p className="report-card-signature-label">
         {label}
-        {name ? <span className="ml-1 normal-case text-slate-700">· {name}</span> : null}
+        {name ? <span className="report-card-signature-name"> · {name}</span> : null}
       </p>
     </div>
   );

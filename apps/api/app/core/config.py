@@ -43,6 +43,22 @@ class Settings(BaseSettings):
     # Platform maintenance — wipe tenant data but keep platform admin (pre-go-live testing).
     platform_allow_data_reset: bool = False
 
+    # Outbound email (transactional SMTP — see docs/EMAIL-SETUP.md)
+    smtp_enabled: bool = False
+    smtp_host: str = ""
+    smtp_port: int = 587
+    smtp_username: str = ""
+    smtp_password: str = ""
+    smtp_use_tls: bool = True
+    smtp_from_email: str = "info@skulpulse.com"
+    smtp_from_name: str = "SkulPulse"
+    tenant_portal_url: str = "http://localhost:3005"
+    platform_portal_url: str = "http://localhost:3005/platform/sign-in"
+
+    # Structured audit files (JSONL — Serilog-style file sink for platform portal download).
+    platform_audit_log_dir: str = "storage/platform-audit"
+    platform_audit_file_enabled: bool = True
+
     # Connection pool (per API instance — §4.1)
     pool_size: int = 20
     max_overflow: int = 10

@@ -161,6 +161,11 @@ async def onboard_and_login(
     client, admin_headers, code: str, module_keys: list[str] | None = None
 ) -> tuple[dict, dict]:
     """Onboard a school and log in as its 0001 admin. Returns (headers, onboard_body)."""
+    from sqlalchemy import update
+
+    from app.core.db import SessionLocal, apply_bypass_guc
+    from app.models.user import TenantUser
+
     payload = sample_onboard_payload(code)
     if module_keys is not None:
         payload["module_keys"] = module_keys
@@ -168,6 +173,18 @@ async def onboard_and_login(
         "/api/v1/platform/schools", json=payload, headers=admin_headers
     )
     assert created.status_code == 201, created.text
+    tenant_id = created.json()["tenant_id"]
+
+    # Tests exercise tenant APIs after login; clear the first-login gate here.
+    async with SessionLocal() as session:
+        await apply_bypass_guc(session)
+        await session.execute(
+            update(TenantUser)
+            .where(TenantUser.tenant_id == tenant_id, TenantUser.login_id == "0001")
+            .values(must_change_password=False)
+        )
+        await session.commit()
+
     login = await client.post(
         "/api/v1/auth/tenant/login",
         json={"username": f"0001@{code}", "password": "ChangeMe!2025"},
@@ -178,12 +195,13 @@ async def onboard_and_login(
 
 
 def sample_onboard_payload(code: str = "STPETERS") -> dict:
+    email = f"admin.{code.lower()}@stpeters.ac.ug"
     return {
         "school_code": code,
         "name": "St. Peter's Primary School",
         "ownership": "private",
         "phone": "+256700000000",
-        "email": "admin@stpeters.ac.ug",
+        "email": email,
         "head_teacher_name": "Jane Nakato",
         "contact_person_name": "Jane Nakato",
         "contact_person_phone": "+256700000001",
@@ -193,6 +211,6 @@ def sample_onboard_payload(code: str = "STPETERS") -> dict:
             "name": "Jane Nakato",
             "login_id": "0001",
             "password": "ChangeMe!2025",
-            "email": "admin@stpeters.ac.ug",
+            "email": email,
         },
     }

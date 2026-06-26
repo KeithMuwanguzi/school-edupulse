@@ -1,12 +1,14 @@
 "use client";
 
 import { useState } from "react";
+import { ImportReadinessBanner, useImportReadiness } from "@/components/domain/ImportReadinessBanner";
 import { SettingsHint } from "@/components/layout/settingsUi";
 import { Button } from "@/components/ui/Button";
 import { Card } from "@/components/ui/Card";
 import { Icon } from "@/components/ui/Icon";
 import { useToast } from "@/components/ui/Toast";
 import { parseError } from "@/lib/apiError";
+import { toastTimetableImport } from "@/lib/importToasts";
 import type { TimetableImportResponse } from "@/lib/types";
 import { useImportTimetableMutation } from "@/store/api/skulpulseApi";
 import {
@@ -21,6 +23,7 @@ interface TimetableImportPanelProps {
 
 export function TimetableImportPanel({ onClose }: TimetableImportPanelProps) {
   const { toast } = useToast();
+  const { canProceed } = useImportReadiness("timetable");
   const [fileName, setFileName] = useState("");
   const [rows, setRows] = useState<TimetableImportRow[]>([]);
   const [validation, setValidation] = useState<TimetableImportResponse | null>(null);
@@ -28,6 +31,10 @@ export function TimetableImportPanel({ onClose }: TimetableImportPanelProps) {
   const [importTimetable, { isLoading }] = useImportTimetableMutation();
 
   async function handleFile(file: File) {
+    if (!canProceed) {
+      toast("Complete classes, subjects, and staff setup before importing a timetable.", "error");
+      return;
+    }
     try {
       const parsed = await parseTimetableFile(file);
       if (!parsed.length) {
@@ -41,6 +48,7 @@ export function TimetableImportPanel({ onClose }: TimetableImportPanelProps) {
       // Auto-validate against school data.
       const res = await importTimetable({ rows: parsed, dry_run: true }).unwrap();
       setValidation(res);
+      toastTimetableImport(toast, res, "validate");
     } catch (err) {
       const p = parseError(err);
       toast(p.message || (err instanceof Error ? err.message : "Could not read file."), "error");
@@ -51,7 +59,7 @@ export function TimetableImportPanel({ onClose }: TimetableImportPanelProps) {
     try {
       const res = await importTimetable({ rows, dry_run: false }).unwrap();
       setDone(res);
-      toast(`${res.created} lesson(s) imported.`, "success");
+      toastTimetableImport(toast, res, "commit");
     } catch (err) {
       const p = parseError(err);
       toast(p.message, "error", p.requestId);
@@ -83,11 +91,13 @@ export function TimetableImportPanel({ onClose }: TimetableImportPanelProps) {
         saved.
       </SettingsHint>
 
+      <ImportReadinessBanner flow="timetable" className="mt-3" />
+
       <div className="mt-3 flex flex-wrap items-center gap-2">
         <Button size="sm" variant="secondary" onClick={downloadTimetableTemplate}>
           <Icon name="arrow-down" size={13} /> Download template
         </Button>
-        <label className="cursor-pointer">
+        <label className={canProceed ? "cursor-pointer" : "cursor-not-allowed opacity-50"}>
           <span className="inline-flex h-7 items-center rounded-md border border-slate-200 px-2.5 text-[11px] font-medium text-slate-600 hover:bg-slate-50">
             Choose file
           </span>
@@ -95,6 +105,7 @@ export function TimetableImportPanel({ onClose }: TimetableImportPanelProps) {
             type="file"
             accept=".csv,.xlsx,.xls,text/csv"
             className="hidden"
+            disabled={!canProceed}
             onChange={(e) => {
               const file = e.target.files?.[0];
               if (file) void handleFile(file);

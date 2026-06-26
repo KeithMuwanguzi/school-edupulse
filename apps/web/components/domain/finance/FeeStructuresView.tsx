@@ -15,6 +15,7 @@ import { Table, TBody, TD, TH, THead, TR } from "@/components/ui/Table";
 import { useToast } from "@/components/ui/Toast";
 import { formatUGX } from "@/lib/cn";
 import { parseError } from "@/lib/apiError";
+import { ALL_CLASS_LEVELS, levelLabel } from "@/lib/schoolLevels";
 import type { FeeStructureOut } from "@/lib/types";
 import {
   useAcademicContextQuery,
@@ -29,7 +30,178 @@ import {
 import { useAppSelector } from "@/store/hooks";
 import type { FeeStructureLineOut } from "@/lib/types";
 
-const CLASS_LEVELS = ["P1", "P2", "P3", "P4", "P5", "P6", "P7"];
+const APPLIES_TO_OPTIONS = [
+  { value: "all", label: "All students" },
+  { value: "class_level", label: "Class level" },
+  { value: "day", label: "Day students" },
+  { value: "boarder", label: "Boarders" },
+];
+
+function appliesToLabel(line: FeeStructureLineOut) {
+  if (line.applies_to === "all") return "All students";
+  if (line.applies_to === "class_level") return `Level ${line.class_level}`;
+  if (line.applies_to === "day") return "Day students";
+  if (line.applies_to === "boarder") return "Boarders";
+  return line.applies_to;
+}
+
+function structureSummary(structure: FeeStructureOut) {
+  const catalog = formatUGX(structure.catalog_total_ugx ?? structure.total_ugx);
+  const expected = formatUGX(structure.expected_invoiced_ugx ?? 0);
+  return `${structure.term_label} · ${structure.line_count} line(s) · Catalog ${catalog} · Expected ${expected}`;
+}
+
+function ApplicabilityFields({
+  appliesTo,
+  classLevel,
+  onAppliesToChange,
+  onClassLevelChange,
+}: {
+  appliesTo: string;
+  classLevel: string;
+  onAppliesToChange: (value: string) => void;
+  onClassLevelChange: (value: string) => void;
+}) {
+  return (
+    <>
+      <FormField label="Applies to">
+        <Select value={appliesTo} onChange={(e) => onAppliesToChange(e.target.value)} className="text-[12px]">
+          {APPLIES_TO_OPTIONS.map((opt) => (
+            <option key={opt.value} value={opt.value}>
+              {opt.label}
+            </option>
+          ))}
+        </Select>
+      </FormField>
+      {appliesTo === "class_level" && (
+        <FormField label="Class level">
+          <Select value={classLevel} onChange={(e) => onClassLevelChange(e.target.value)} className="text-[12px]">
+            {ALL_CLASS_LEVELS.map((level) => (
+              <option key={level} value={level}>
+                {level} · {levelLabel(level)}
+              </option>
+            ))}
+          </Select>
+        </FormField>
+      )}
+    </>
+  );
+}
+
+function LineMobileCard({
+  structureId,
+  line,
+  editable,
+}: {
+  structureId: string;
+  line: FeeStructureLineOut;
+  editable: boolean;
+}) {
+  const { toast } = useToast();
+  const [updateLine, { isLoading: saving }] = useUpdateFeeStructureLineMutation();
+  const [deleteLine] = useDeleteFeeStructureLineMutation();
+  const [editing, setEditing] = useState(false);
+  const [label, setLabel] = useState(line.label);
+  const [amount, setAmount] = useState(String(line.amount_ugx));
+  const [appliesTo, setAppliesTo] = useState(line.applies_to);
+  const [classLevel, setClassLevel] = useState(line.class_level ?? "P1");
+
+  function cancel() {
+    setLabel(line.label);
+    setAmount(String(line.amount_ugx));
+    setAppliesTo(line.applies_to);
+    setClassLevel(line.class_level ?? "P1");
+    setEditing(false);
+  }
+
+  async function save() {
+    const parsed = Number(amount.replace(/,/g, ""));
+    if (!label.trim() || Number.isNaN(parsed) || parsed < 0) {
+      toast("Enter a label and valid amount.", "error");
+      return;
+    }
+    if (appliesTo === "class_level" && !classLevel) {
+      toast("Select a class level.", "error");
+      return;
+    }
+    try {
+      await updateLine({
+        structureId,
+        lineId: line.id,
+        body: {
+          label: label.trim(),
+          amount_ugx: parsed,
+          applies_to: appliesTo,
+          class_level: appliesTo === "class_level" ? classLevel : null,
+        },
+      }).unwrap();
+      toast("Fee line updated.", "success");
+      setEditing(false);
+    } catch (err) {
+      const p = parseError(err);
+      toast(p.message, "error", p.requestId);
+    }
+  }
+
+  async function remove() {
+    try {
+      await deleteLine({ structureId, lineId: line.id }).unwrap();
+      toast("Line removed.", "success");
+    } catch (err) {
+      const p = parseError(err);
+      toast(p.message, "error", p.requestId);
+    }
+  }
+
+  if (editing) {
+    return (
+      <div className="rounded-lg border border-brand-200 bg-brand-50/30 p-3 space-y-2">
+        <FormField label="Fee item">
+          <Input value={label} onChange={(e) => setLabel(e.target.value)} className="text-[12px]" />
+        </FormField>
+        <FormField label="Amount (UGX)">
+          <Input type="number" min={0} value={amount} onChange={(e) => setAmount(e.target.value)} className="text-[12px]" />
+        </FormField>
+        <ApplicabilityFields
+          appliesTo={appliesTo}
+          classLevel={classLevel}
+          onAppliesToChange={setAppliesTo}
+          onClassLevelChange={setClassLevel}
+        />
+        <div className="flex gap-2">
+          <Button size="sm" variant="secondary" loading={saving} className="flex-1" onClick={() => void save()}>
+            Save
+          </Button>
+          <Button size="sm" variant="ghost" className="flex-1" onClick={cancel}>
+            Cancel
+          </Button>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="rounded-lg border border-slate-200 bg-white p-3">
+      <div className="flex items-start justify-between gap-2">
+        <div>
+          <p className="font-medium text-slate-900">{line.label}</p>
+          <p className="text-[11px] text-slate-500">{appliesToLabel(line)}</p>
+        </div>
+        <p className="shrink-0 font-semibold text-slate-800">{formatUGX(line.amount_ugx)}</p>
+      </div>
+      {editable && (
+        <div className="mt-2 flex gap-2">
+          <Button size="sm" variant="ghost" className="flex-1" onClick={() => setEditing(true)}>
+            Edit
+          </Button>
+          <Button size="sm" variant="ghost" className="flex-1" onClick={() => void remove()}>
+            Remove
+          </Button>
+        </div>
+      )}
+    </div>
+  );
+}
 
 function LineRow({
   structureId,
@@ -46,10 +218,14 @@ function LineRow({
   const [editing, setEditing] = useState(false);
   const [label, setLabel] = useState(line.label);
   const [amount, setAmount] = useState(String(line.amount_ugx));
+  const [appliesTo, setAppliesTo] = useState(line.applies_to);
+  const [classLevel, setClassLevel] = useState(line.class_level ?? "P1");
 
   function cancel() {
     setLabel(line.label);
     setAmount(String(line.amount_ugx));
+    setAppliesTo(line.applies_to);
+    setClassLevel(line.class_level ?? "P1");
     setEditing(false);
   }
 
@@ -59,11 +235,20 @@ function LineRow({
       toast("Enter a label and valid amount.", "error");
       return;
     }
+    if (appliesTo === "class_level" && !classLevel) {
+      toast("Select a class level.", "error");
+      return;
+    }
     try {
       await updateLine({
         structureId,
         lineId: line.id,
-        body: { label: label.trim(), amount_ugx: parsed },
+        body: {
+          label: label.trim(),
+          amount_ugx: parsed,
+          applies_to: appliesTo,
+          class_level: appliesTo === "class_level" ? classLevel : null,
+        },
       }).unwrap();
       toast("Fee line updated.", "success");
       setEditing(false);
@@ -98,11 +283,33 @@ function LineRow({
             className="h-7 w-28 text-[12px]"
           />
         </TD>
-        <TD className="text-[12px] text-slate-600">
-          {line.applies_to === "all" && "All students"}
-          {line.applies_to === "class_level" && `Class ${line.class_level}`}
-          {line.applies_to === "day" && "Day students"}
-          {line.applies_to === "boarder" && "Boarders"}
+        <TD>
+          <div className="space-y-1">
+            <Select
+              value={appliesTo}
+              onChange={(e) => setAppliesTo(e.target.value)}
+              className="h-7 text-[12px]"
+            >
+              {APPLIES_TO_OPTIONS.map((opt) => (
+                <option key={opt.value} value={opt.value}>
+                  {opt.label}
+                </option>
+              ))}
+            </Select>
+            {appliesTo === "class_level" && (
+              <Select
+                value={classLevel}
+                onChange={(e) => setClassLevel(e.target.value)}
+                className="h-7 text-[12px]"
+              >
+                {ALL_CLASS_LEVELS.map((level) => (
+                  <option key={level} value={level}>
+                    {level}
+                  </option>
+                ))}
+              </Select>
+            )}
+          </div>
         </TD>
         <TD>
           <div className="flex justify-end gap-1">
@@ -122,12 +329,7 @@ function LineRow({
     <TR>
       <TD>{line.label}</TD>
       <TD>{formatUGX(line.amount_ugx)}</TD>
-      <TD className="text-[12px] text-slate-600">
-        {line.applies_to === "all" && "All students"}
-        {line.applies_to === "class_level" && `Class ${line.class_level}`}
-        {line.applies_to === "day" && "Day students"}
-        {line.applies_to === "boarder" && "Boarders"}
-      </TD>
+      <TD className="text-[12px] text-slate-600">{appliesToLabel(line)}</TD>
       {editable && (
         <TD>
           <div className="flex justify-end gap-1">
@@ -234,20 +436,21 @@ function StructureEditor({
     <Card>
       <CardHeader
         title={structure.name}
-        description={`${structure.term_label} · ${structure.line_count} line(s) · ${formatUGX(structure.total_ugx)} total`}
+        description={structureSummary(structure)}
         action={
-          <div className="flex items-center gap-2">
+          <div className="flex w-full flex-col gap-2 sm:w-auto sm:flex-row sm:flex-wrap sm:items-center sm:justify-end">
             <Badge tone={structure.status === "active" ? "green" : "neutral"} dot>
               {structure.status}
             </Badge>
             {canEdit && !editingMeta && (
-              <Button size="sm" variant="ghost" onClick={() => setEditingMeta(true)}>
+              <Button size="sm" variant="ghost" className="w-full sm:w-auto" onClick={() => setEditingMeta(true)}>
                 Edit details
               </Button>
             )}
             {isDraft && !readOnly && (
               <Button
                 size="sm"
+                className="w-full sm:w-auto"
                 onClick={handleActivate}
                 disabled={activating || structure.line_count === 0}
               >
@@ -258,6 +461,26 @@ function StructureEditor({
         }
       />
       <CardBody className="space-y-4">
+        {Object.keys(structure.level_amounts_ugx ?? {}).length > 0 && (
+          <div className="rounded-lg border border-slate-100 bg-slate-50/60 p-3">
+            <p className="mb-2 text-[11px] font-semibold uppercase tracking-wide text-slate-500">
+              Per-student base by level
+            </p>
+            <p className="mb-2 text-[11px] text-slate-500">
+              Includes all-student and class-level lines only. Day/boarder charges vary by learner.
+            </p>
+            <div className="flex flex-wrap gap-2">
+              {Object.entries(structure.level_amounts_ugx).map(([level, amount]) => (
+                <span
+                  key={level}
+                  className="rounded-md border border-slate-200 bg-white px-2 py-1 text-[12px] text-slate-700"
+                >
+                  {level}: {formatUGX(amount)}
+                </span>
+              ))}
+            </div>
+          </div>
+        )}
         {editingMeta && (
           <div className="grid gap-3 rounded-lg border border-slate-100 bg-slate-50/50 p-3 sm:grid-cols-2">
             <FormField label="Name" htmlFor={`meta-name-${structure.id}`} required>
@@ -295,6 +518,17 @@ function StructureEditor({
             </div>
           </div>
         )}
+        <div className="space-y-2 md:hidden">
+          {structure.lines.map((line) => (
+            <LineMobileCard
+              key={line.id}
+              structureId={structure.id}
+              line={line}
+              editable={canEdit}
+            />
+          ))}
+        </div>
+        <div className="hidden md:block">
         <Table>
           <THead>
             <TR>
@@ -315,6 +549,7 @@ function StructureEditor({
             ))}
           </TBody>
         </Table>
+        </div>
 
         {!readOnly && isDraft && (
           <form className="grid gap-3 border-t border-slate-100 pt-4 sm:grid-cols-2 lg:grid-cols-4" onSubmit={handleAddLine}>
@@ -354,7 +589,7 @@ function StructureEditor({
                   value={classLevel}
                   onChange={(e) => setClassLevel(e.target.value)}
                 >
-                  {CLASS_LEVELS.map((lv) => (
+                  {ALL_CLASS_LEVELS.map((lv) => (
                     <option key={lv} value={lv}>
                       {lv}
                     </option>
@@ -363,7 +598,7 @@ function StructureEditor({
               </FormField>
             )}
             <div className="flex items-end sm:col-span-2 lg:col-span-4">
-              <Button type="submit" size="sm" disabled={adding}>
+              <Button type="submit" size="sm" className="w-full sm:w-auto" disabled={adding}>
                 {adding ? "Adding…" : "Add line"}
               </Button>
             </div>
@@ -431,17 +666,17 @@ export function FeeStructuresView() {
         <Card>
           <CardHeader title="New structure" description="Draft structures can be edited until activated." />
           <CardBody>
-            <form className="flex flex-wrap items-end gap-3" onSubmit={handleCreate}>
+            <form className="flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-end" onSubmit={handleCreate}>
               <FormField label="Name" htmlFor="structure-name" required>
                 <Input
                   id="structure-name"
                   value={name}
                   onChange={(e) => setName(e.target.value)}
                   placeholder="Term 1 2025 fees"
-                  className="max-w-md"
+                  className="w-full sm:max-w-md"
                 />
               </FormField>
-              <Button type="submit" disabled={creating}>
+              <Button type="submit" className="w-full sm:w-auto" disabled={creating}>
                 {creating ? "Creating…" : "Create draft"}
               </Button>
             </form>

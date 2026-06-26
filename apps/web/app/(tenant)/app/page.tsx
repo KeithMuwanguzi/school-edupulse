@@ -6,6 +6,7 @@ import { Badge } from "@/components/ui/Badge";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { cn } from "@/lib/cn";
 import { moduleIcon, moduleLabel, sortModulesByCatalog } from "@/lib/moduleMeta";
+import { useSchoolSetup } from "@/hooks/useSchoolSetup";
 import { useAppSelector } from "@/store/hooks";
 import {
   useAcademicContextQuery,
@@ -13,7 +14,6 @@ import {
   useGetTenantSchoolQuery,
   useListClassesQuery,
   useListSubjectsQuery,
-  useListTenantUsersQuery,
   useRosterSummaryQuery,
 } from "@/store/api/skulpulseApi";
 
@@ -133,7 +133,20 @@ function QuickAction({ moduleKey }: { moduleKey: string }) {
   );
 }
 
-function ChecklistRow({ done, label, href }: { done: boolean; label: string; href: string }) {
+function ChecklistRow({
+  done,
+  skipped,
+  label,
+  href,
+  tier,
+}: {
+  done: boolean;
+  skipped?: boolean;
+  label: string;
+  href: string;
+  tier?: "mandatory" | "optional";
+}) {
+  const resolved = done || skipped;
   return (
     <Link
       href={href}
@@ -144,24 +157,33 @@ function ChecklistRow({ done, label, href }: { done: boolean; label: string; hre
           "flex h-5 w-5 shrink-0 items-center justify-center rounded-full ring-1 transition-colors",
           done
             ? "bg-brand-600 text-white ring-brand-600"
-            : "bg-white text-slate-300 ring-slate-300 group-hover:ring-brand-300",
+            : skipped
+              ? "bg-slate-100 text-slate-400 ring-slate-200"
+              : "bg-white text-slate-300 ring-slate-300 group-hover:ring-brand-300",
         )}
       >
         {done ? (
           <Icon name="check" size={12} className="[&>circle]:hidden" />
+        ) : skipped ? (
+          <Icon name="minus" size={10} />
         ) : (
           <span className="h-1.5 w-1.5 rounded-full bg-current" />
         )}
       </span>
-      <span
-        className={cn(
-          "flex-1 text-[11.5px]",
-          done ? "text-slate-400 line-through" : "font-medium text-slate-700",
+      <span className="min-w-0 flex-1">
+        <span
+          className={cn(
+            "block text-[11.5px]",
+            resolved ? "text-slate-400 line-through" : "font-medium text-slate-700",
+          )}
+        >
+          {label}
+        </span>
+        {tier === "optional" && !resolved && (
+          <span className="block text-[9.5px] text-slate-400">Optional</span>
         )}
-      >
-        {label}
       </span>
-      {!done && (
+      {!resolved && (
         <Icon
           name="arrow-right"
           size={13}
@@ -187,7 +209,7 @@ export default function TenantDashboard() {
   );
   const { data: classes } = useListClassesQuery(undefined, { skip: !isAdmin });
   const { data: subjects } = useListSubjectsQuery(undefined, { skip: !isAdmin });
-  const { data: users } = useListTenantUsersQuery(undefined, { skip: !isAdmin });
+  const { evaluation: setup } = useSchoolSetup(isAdmin);
 
   const subscribed = sortModulesByCatalog(moduleKeys.filter((m) => m !== "core"));
   const progress = termProgress(ctx?.active_term?.starts_on, ctx?.active_term?.ends_on);
@@ -246,35 +268,11 @@ export default function TenantDashboard() {
   }
   const shownStats = stats.slice(0, 4);
 
-  // Admin getting-started checklist (real, derived signals).
-  const checklist = [
-    {
-      label: "Complete school profile",
-      done: Boolean(school?.profile?.name),
-      href: "/app/settings/profile",
-    },
-    {
-      label: "Set active academic year & term",
-      done: Boolean(ctx?.active_term),
-      href: "/app/settings/academic-year",
-    },
-    {
-      label: "Set up classes & streams",
-      done: (classCount ?? 0) > 0,
-      href: "/app/settings/academic-year",
-    },
-    {
-      label: "Add subjects",
-      done: (subjects?.length ?? 0) > 0,
-      href: "/app/settings/subjects",
-    },
-    {
-      label: "Invite staff accounts",
-      done: (users?.length ?? 0) > 1,
-      href: "/app/settings/users",
-    },
-  ];
-  const checklistDone = checklist.filter((c) => c.done).length;
+  // Admin getting-started checklist (shared with onboarding gate).
+  const checklistMandatory = setup?.mandatory ?? [];
+  const checklistOptional = setup?.optional ?? [];
+  const checklistDone = setup?.totalResolved ?? 0;
+  const checklistTotal = setup?.totalApplicable ?? 0;
 
   return (
     <div className="space-y-5 animate-fade-rise">
@@ -316,7 +314,7 @@ export default function TenantDashboard() {
           </div>
 
           {progress && (
-            <div className="w-full max-w-[260px] shrink-0 rounded-xl bg-white/10 p-3 ring-1 ring-white/15 backdrop-blur-sm">
+            <div className="w-full max-w-none shrink-0 rounded-xl bg-white/10 p-3 ring-1 ring-white/15 backdrop-blur-sm sm:max-w-[260px]">
               <div className="flex items-center justify-between text-[10.5px] font-medium text-brand-100">
                 <span>
                   Week {progress.currentWeek} of {progress.totalWeeks}
@@ -387,14 +385,38 @@ export default function TenantDashboard() {
                     Getting started
                   </h3>
                 </div>
-                <Badge tone={checklistDone === checklist.length ? "green" : "gold"}>
-                  {checklistDone}/{checklist.length}
+                <Badge tone={checklistDone === checklistTotal && checklistTotal > 0 ? "green" : "gold"}>
+                  {checklistDone}/{checklistTotal}
                 </Badge>
               </div>
               <div className="px-2 py-2">
-                {checklist.map((c) => (
-                  <ChecklistRow key={c.label} done={c.done} label={c.label} href={c.href} />
+                {checklistMandatory.map((c) => (
+                  <ChecklistRow
+                    key={c.id}
+                    done={c.done}
+                    skipped={c.skipped}
+                    label={c.title}
+                    href={c.href}
+                    tier="mandatory"
+                  />
                 ))}
+                {checklistOptional.length > 0 && (
+                  <>
+                    <p className="px-2 pb-1 pt-2 text-[9.5px] font-bold uppercase tracking-[0.1em] text-slate-400">
+                      Optional
+                    </p>
+                    {checklistOptional.map((c) => (
+                      <ChecklistRow
+                        key={c.id}
+                        done={c.done}
+                        skipped={c.skipped}
+                        label={c.title}
+                        href={c.href}
+                        tier="optional"
+                      />
+                    ))}
+                  </>
+                )}
               </div>
             </div>
           ) : (

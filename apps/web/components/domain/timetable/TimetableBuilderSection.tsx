@@ -8,6 +8,7 @@ import { EmptyState } from "@/components/ui/EmptyState";
 import { Icon } from "@/components/ui/Icon";
 import { Input } from "@/components/ui/Input";
 import { Select } from "@/components/ui/Select";
+import { PageToolbar, PageToolbarGroup } from "@/components/ui/PageToolbar";
 import { RefreshButton, refreshQueries } from "@/components/ui/RefreshButton";
 import { useToast } from "@/components/ui/Toast";
 import { parseError } from "@/lib/apiError";
@@ -23,6 +24,7 @@ import {
 } from "@/store/api/skulpulseApi";
 import { TimetableCalendar } from "./TimetableCalendar";
 import { TimetableImportPanel } from "./TimetableImportPanel";
+import { TimetableLessonList } from "./TimetableLessonList";
 import { TimetableMonthView } from "./TimetableMonthView";
 import { TimetableViewToggle, type TimetableViewMode } from "./TimetableViewToggle";
 import { DAY_NAMES, WEEK_DAYS, todayWeekday } from "./timetableUtils";
@@ -179,46 +181,50 @@ export function TimetableBuilderSection() {
             { label: "This class", value: filteredSlots.length },
           ]}
         />
-        <div className="flex flex-wrap items-center gap-2">
-          <TimetableViewToggle mode={viewMode} onChange={setViewMode} />
-          <Select
-            value={classId}
-            onChange={(e) => {
-              setClassId(e.target.value);
-              setStreamId("");
-            }}
-            className="h-7 w-auto text-[12px]"
-            aria-label="Class"
-          >
-            {classes.length === 0 && <option value="">No classes</option>}
-            {classes.map((c) => (
-              <option key={c.id} value={c.id}>
-                {c.label ? `${c.level} · ${c.label}` : c.level}
-              </option>
-            ))}
-          </Select>
-          <Select
-            value={streamId}
-            disabled={!selectedClass || selectedClass.streams.length === 0}
-            onChange={(e) => setStreamId(e.target.value)}
-            className="h-7 w-auto text-[12px]"
-            aria-label="Stream"
-          >
-            <option value="">All streams</option>
-            {selectedClass?.streams.map((s) => (
-              <option key={s.id} value={s.id}>
-                {s.name}
-              </option>
-            ))}
-          </Select>
-          <Button size="sm" variant="secondary" onClick={() => { setAddOpen(false); setImportOpen((v) => !v); }}>
-            <Icon name="inbox" size={13} /> Import
-          </Button>
-          <Button size="sm" onClick={openAdd}>
-            <Icon name="plus" size={13} /> Add lesson
-          </Button>
-          <RefreshButton onRefresh={refreshAll} isRefreshing={isRefreshing} label="Refresh timetable" />
-        </div>
+        <PageToolbar>
+          <PageToolbarGroup>
+            <TimetableViewToggle mode={viewMode} onChange={setViewMode} />
+            <Select
+              value={classId}
+              onChange={(e) => {
+                setClassId(e.target.value);
+                setStreamId("");
+              }}
+              className="h-9 w-full text-[12px] sm:h-7 sm:w-auto"
+              aria-label="Class"
+            >
+              {classes.length === 0 && <option value="">No classes</option>}
+              {classes.map((c) => (
+                <option key={c.id} value={c.id}>
+                  {c.label ? `${c.level} · ${c.label}` : c.level}
+                </option>
+              ))}
+            </Select>
+            <Select
+              value={streamId}
+              disabled={!selectedClass || selectedClass.streams.length === 0}
+              onChange={(e) => setStreamId(e.target.value)}
+              className="h-9 w-full text-[12px] sm:h-7 sm:w-auto"
+              aria-label="Stream"
+            >
+              <option value="">All streams</option>
+              {selectedClass?.streams.map((s) => (
+                <option key={s.id} value={s.id}>
+                  {s.name}
+                </option>
+              ))}
+            </Select>
+          </PageToolbarGroup>
+          <PageToolbarGroup>
+            <Button size="sm" variant="secondary" onClick={() => { setAddOpen(false); setImportOpen((v) => !v); }}>
+              <Icon name="inbox" size={13} /> Import
+            </Button>
+            <Button size="sm" onClick={openAdd}>
+              <Icon name="plus" size={13} /> Add lesson
+            </Button>
+            <RefreshButton onRefresh={refreshAll} isRefreshing={isRefreshing} label="Refresh timetable" />
+          </PageToolbarGroup>
+        </PageToolbar>
       </div>
 
       {importOpen && <TimetableImportPanel onClose={() => setImportOpen(false)} />}
@@ -353,12 +359,37 @@ export function TimetableBuilderSection() {
         />
       ) : viewMode === "month" ? (
         <TimetableMonthView slots={filteredSlots} />
-      ) : (
-        <TimetableCalendar
+      ) : viewMode === "today" ? (
+        <TimetableLessonList
           slots={filteredSlots}
+          dayFilter={todayWeekday()}
+          showTeacher
+          showClass={false}
+          highlightToday
           onEdit={startEdit}
           onDelete={(id) => void remove(id)}
+          emptyMessage="No lessons scheduled for today in this class."
         />
+      ) : (
+        <>
+          <div className="lg:hidden">
+            <TimetableLessonList
+              slots={filteredSlots}
+              showTeacher
+              showClass={false}
+              highlightToday
+              onEdit={startEdit}
+              onDelete={(id) => void remove(id)}
+            />
+          </div>
+          <div className="hidden lg:block">
+            <TimetableCalendar
+              slots={filteredSlots}
+              onEdit={startEdit}
+              onDelete={(id) => void remove(id)}
+            />
+          </div>
+        </>
       )}
     </div>
   );

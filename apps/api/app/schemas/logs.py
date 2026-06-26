@@ -40,13 +40,31 @@ class ErrorLogItem(BaseModel):
 
 
 class AuditLogItem(BaseModel):
+    id: UUID
     actor_type: str
     actor_id: UUID | None = None
     tenant_id: UUID | None = None
     action: str
     resource_type: str | None = None
     resource_id: UUID | None = None
+    request_id: str | None = None
+    metadata: dict | None = None
+    ip_address: str | None = None
     created_at: dt.datetime
+
+    @field_validator("ip_address", mode="before")
+    @classmethod
+    def _ip_to_str(cls, v):
+        return str(v) if v is not None else None
+
+
+class AuditLogFileItem(BaseModel):
+    kind: str
+    filename: str
+    relative_path: str
+    size_bytes: int
+    modified_at: dt.datetime
+    admin_id: str | None = None
 
 
 class RequestTrail(BaseModel):

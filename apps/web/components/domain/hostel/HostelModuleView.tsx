@@ -131,7 +131,7 @@ export function HostelModuleView() {
         description="Set up dormitories and rooms, then allocate boarders during enrollment or from each hostel's roll."
         action={
           isAdmin ? (
-            <Button onClick={() => setAddOpen((v) => !v)} variant={addOpen ? "secondary" : "primary"}>
+            <Button className="w-full sm:w-auto" onClick={() => setAddOpen((v) => !v)} variant={addOpen ? "secondary" : "primary"}>
               <Icon name={addOpen ? "x" : "plus"} size={13} />
               {addOpen ? "Close" : "New hostel"}
             </Button>
@@ -139,7 +139,7 @@ export function HostelModuleView() {
         }
       />
 
-      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+      <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
         <SummaryStat label="Hostels" value={totals.hostels} />
         <SummaryStat label="Beds" value={totals.beds || "—"} hint="Across all dormitories" />
         <SummaryStat label="Occupied" value={totals.occupied} />
@@ -207,11 +207,11 @@ export function HostelModuleView() {
                 />
               </FormField>
             </div>
-            <div className="flex justify-end gap-2">
-              <Button size="sm" variant="ghost" onClick={() => { resetForm(); setAddOpen(false); }}>
+            <div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
+              <Button size="sm" variant="ghost" className="w-full sm:w-auto" onClick={() => { resetForm(); setAddOpen(false); }}>
                 Cancel
               </Button>
-              <Button size="sm" loading={creating} onClick={() => void submit()}>
+              <Button size="sm" className="w-full sm:w-auto" loading={creating} onClick={() => void submit()}>
                 Create hostel
               </Button>
             </div>

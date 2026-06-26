@@ -16,7 +16,7 @@ import { useToast } from "@/components/ui/Toast";
 import { GENDER_OPTIONS, RELATIONSHIP_OPTIONS, STUDENT_NAME_LABELS, studentNameRequiredMessage } from "../students/studentOptions";
 
 const compactControl = "h-7 text-[12px]";
-const LEVELS = ["P1", "P2", "P3", "P4", "P5", "P6", "P7"];
+import { ALL_CLASS_LEVELS } from "@/lib/schoolLevels";
 
 export function NewAdmissionApplicationForm() {
   const router = useRouter();
@@ -103,7 +103,7 @@ export function NewAdmissionApplicationForm() {
           <FormField label="Entry class">
             <Select value={classLevel} onChange={(e) => setClassLevel(e.target.value)} className={compactControl}>
               <option value="">—</option>
-              {LEVELS.map((l) => (
+              {ALL_CLASS_LEVELS.map((l) => (
                 <option key={l} value={l}>{l}</option>
               ))}
             </Select>

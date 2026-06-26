@@ -3,6 +3,7 @@
 import { useMemo, useState } from "react";
 import { Icon } from "@/components/ui/Icon";
 import type { TimetableSlotOut } from "@/lib/types";
+import { TimetableMonthAgenda } from "./TimetableMonthAgenda";
 import {
   DAY_SHORT,
   WEEK_DAYS,
@@ -41,7 +42,12 @@ export function TimetableMonthView({ slots, showClass = true }: TimetableMonthVi
   }
 
   return (
-    <div className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-card">
+    <div className="space-y-3">
+      <div className="lg:hidden">
+        <TimetableMonthAgenda slots={slots} showClass={showClass} />
+      </div>
+
+      <div className="hidden overflow-hidden rounded-xl border border-slate-200 bg-white shadow-card lg:block">
       <div className="flex items-center justify-between border-b border-slate-100 px-3 py-2">
         <div className="flex items-center gap-1">
           <button
@@ -133,6 +139,7 @@ export function TimetableMonthView({ slots, showClass = true }: TimetableMonthVi
             </div>
           );
         })}
+      </div>
       </div>
     </div>
   );

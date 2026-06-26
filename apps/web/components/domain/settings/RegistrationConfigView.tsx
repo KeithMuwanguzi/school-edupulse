@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, type DragEvent } from "react";
 import { Button } from "@/components/ui/Button";
 import { Card, CardBody, CardHeader } from "@/components/ui/Card";
 import { ErrorBanner } from "@/components/ui/ErrorBanner";
@@ -10,6 +10,7 @@ import { Input } from "@/components/ui/Input";
 import { Select } from "@/components/ui/Select";
 import { PageLoader } from "@/components/ui/Spinner";
 import { RefreshButton } from "@/components/ui/RefreshButton";
+import { PageToolbar } from "@/components/ui/PageToolbar";
 import { Badge } from "@/components/ui/Badge";
 import { SettingsHint } from "@/components/layout/settingsUi";
 import { cn } from "@/lib/cn";
@@ -47,6 +48,7 @@ export function RegistrationConfigView() {
   const [updateRequirement] = useUpdateRegistrationRequirementMutation();
   const [deleteRequirement] = useDeleteRegistrationRequirementMutation();
   const [reorderSections, { isLoading: reordering }] = useReorderRegistrationSectionsMutation();
+  const [dragSectionId, setDragSectionId] = useState<string | null>(null);
 
   const [newSectionLabel, setNewSectionLabel] = useState("");
   const [expanded, setExpanded] = useState<string | null>(null);
@@ -87,13 +89,7 @@ export function RegistrationConfigView() {
     }
   }
 
-  async function moveSection(sectionId: string, direction: -1 | 1) {
-    const sections = data!.sections;
-    const ids = sections.map((s) => s.id);
-    const idx = ids.indexOf(sectionId);
-    const swapIdx = idx + direction;
-    if (idx < 0 || swapIdx < 0 || swapIdx >= ids.length) return;
-    [ids[idx], ids[swapIdx]] = [ids[swapIdx], ids[idx]];
+  async function reorderSectionsByIds(ids: string[]) {
     try {
       await reorderSections({ section_ids: ids }).unwrap();
       toast("Section order updated.", "success");
@@ -103,15 +99,27 @@ export function RegistrationConfigView() {
     }
   }
 
+  function handleSectionDrop(targetId: string) {
+    if (!dragSectionId || dragSectionId === targetId) return;
+    const ids = data!.sections.map((s) => s.id);
+    const fromIdx = ids.indexOf(dragSectionId);
+    const toIdx = ids.indexOf(targetId);
+    if (fromIdx < 0 || toIdx < 0) return;
+    ids.splice(fromIdx, 1);
+    ids.splice(toIdx, 0, dragSectionId);
+    setDragSectionId(null);
+    void reorderSectionsByIds(ids);
+  }
+
   return (
     <div className="space-y-4">
-      <div className="flex items-start justify-between gap-3">
+      <PageToolbar className="items-start">
         <SettingsHint>
-          Define the sections staff check when learners return each term. Mark items as required or
-          optional — each school configures its own checklist.
+          Define the sections staff check when learners return each term. Drag collapsed sections to
+          reorder the check-in wizard. Mark items as required or optional.
         </SettingsHint>
         <RefreshButton onRefresh={refetch} isRefreshing={isFetching} label="Refresh registration config" />
-      </div>
+      </PageToolbar>
 
       <Card>
         <CardHeader
@@ -119,31 +127,32 @@ export function RegistrationConfigView() {
           title="Add section"
           description="Group related requirements (e.g. Finance, Health, Documents)."
         />
-        <CardBody className="flex flex-wrap items-end gap-2">
+        <CardBody className="flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-end">
           <FormField label="Section name" required>
             <Input
               value={newSectionLabel}
               onChange={(e) => setNewSectionLabel(e.target.value)}
               placeholder="e.g. Transport"
-              className={cn(compact, "max-w-md")}
+              className={cn(compact, "w-full sm:max-w-md")}
             />
           </FormField>
-          <Button size="sm" loading={creatingSection} onClick={() => void addSection()}>
+          <Button size="sm" className="w-full sm:w-auto" loading={creatingSection} onClick={() => void addSection()}>
             Add section
           </Button>
         </CardBody>
       </Card>
 
-      {data.sections.map((section, index) => (
+      {data.sections.map((section) => (
         <SectionCard
           key={section.id}
           section={section}
           expanded={expanded === section.id}
-          canMoveUp={index > 0}
-          canMoveDown={index < data.sections.length - 1}
+          dragging={dragSectionId === section.id}
           reordering={reordering}
-          onMoveUp={() => void moveSection(section.id, -1)}
-          onMoveDown={() => void moveSection(section.id, 1)}
+          onDragStart={() => setDragSectionId(section.id)}
+          onDragEnd={() => setDragSectionId(null)}
+          onDragOver={(e) => e.preventDefault()}
+          onDrop={() => handleSectionDrop(section.id)}
           onToggle={() => setExpanded((id) => (id === section.id ? null : section.id))}
           newReqLabel={newReqLabel[section.id] ?? ""}
           onNewReqLabelChange={(v) => setNewReqLabel((prev) => ({ ...prev, [section.id]: v }))}
@@ -179,11 +188,12 @@ export function RegistrationConfigView() {
 function SectionCard({
   section,
   expanded,
-  canMoveUp,
-  canMoveDown,
+  dragging,
   reordering,
-  onMoveUp,
-  onMoveDown,
+  onDragStart,
+  onDragEnd,
+  onDragOver,
+  onDrop,
   onToggle,
   newReqLabel,
   onNewReqLabelChange,
@@ -196,11 +206,12 @@ function SectionCard({
 }: {
   section: RegistrationSectionOut;
   expanded: boolean;
-  canMoveUp: boolean;
-  canMoveDown: boolean;
+  dragging?: boolean;
   reordering: boolean;
-  onMoveUp: () => void;
-  onMoveDown: () => void;
+  onDragStart: () => void;
+  onDragEnd: () => void;
+  onDragOver: (e: DragEvent) => void;
+  onDrop: () => void;
   onToggle: () => void;
   newReqLabel: string;
   onNewReqLabelChange: (v: string) => void;
@@ -212,56 +223,51 @@ function SectionCard({
   onDeleteRequirement: (reqId: string) => void;
 }) {
   return (
-    <Card>
-      <button
-        type="button"
-        onClick={onToggle}
-        className="flex w-full items-center justify-between px-4 py-3 text-left"
-      >
-        <div className="flex items-center gap-2.5">
-          {section.icon && <Icon name={section.icon} size={14} className="text-brand-600" />}
-          <div>
-            <p className="text-[13px] font-semibold text-slate-800">{section.label}</p>
-            {section.description && (
-              <p className="text-[11px] text-slate-400">{section.description}</p>
-            )}
+    <div
+      draggable={!expanded && !reordering}
+      onDragStart={onDragStart}
+      onDragEnd={onDragEnd}
+      onDragOver={onDragOver}
+      onDrop={onDrop}
+      className={cn(
+        dragging && "opacity-60",
+        !expanded && !reordering && "cursor-grab active:cursor-grabbing",
+      )}
+    >
+      <Card className={cn(dragging && "ring-2 ring-brand-300")}>
+      <div className="flex items-stretch">
+        {!expanded && (
+          <div
+            className="flex w-9 shrink-0 items-center justify-center border-r border-slate-100 text-slate-300"
+            aria-hidden
+          >
+            <Icon name="grip" size={14} />
           </div>
-        </div>
-        <div className="flex items-center gap-2">
-          <div className="flex items-center gap-0.5">
-            <button
-              type="button"
-              disabled={!canMoveUp || reordering}
-              onClick={(e) => {
-                e.stopPropagation();
-                onMoveUp();
-              }}
-              aria-label="Move section up"
-              className="flex h-6 w-6 items-center justify-center rounded text-slate-400 hover:bg-slate-100 hover:text-slate-700 disabled:opacity-30"
-            >
-              <Icon name="arrow-up-right" size={12} className="-rotate-45" />
-            </button>
-            <button
-              type="button"
-              disabled={!canMoveDown || reordering}
-              onClick={(e) => {
-                e.stopPropagation();
-                onMoveDown();
-              }}
-              aria-label="Move section down"
-              className="flex h-6 w-6 items-center justify-center rounded text-slate-400 hover:bg-slate-100 hover:text-slate-700 disabled:opacity-30"
-            >
-              <Icon name="arrow-down" size={12} />
-            </button>
+        )}
+        <button
+          type="button"
+          onClick={onToggle}
+          className="flex min-w-0 flex-1 items-center justify-between px-4 py-3 text-left"
+        >
+          <div className="flex min-w-0 items-center gap-2.5">
+            {section.icon && <Icon name={section.icon} size={14} className="shrink-0 text-brand-600" />}
+            <div className="min-w-0">
+              <p className="truncate text-[13px] font-semibold text-slate-800">{section.label}</p>
+              {section.description && (
+                <p className="truncate text-[11px] text-slate-400">{section.description}</p>
+              )}
+            </div>
           </div>
-          <Badge tone="neutral">{section.requirements.length} items</Badge>
-          <Icon
-            name="chevron-down"
-            size={14}
-            className={cn("text-slate-400 transition-transform", expanded && "rotate-180")}
-          />
-        </div>
-      </button>
+          <div className="ml-2 flex shrink-0 items-center gap-2">
+            <Badge tone="neutral">{section.requirements.length} items</Badge>
+            <Icon
+              name="chevron-down"
+              size={14}
+              className={cn("text-slate-400 transition-transform", expanded && "rotate-180")}
+            />
+          </div>
+        </button>
+      </div>
 
       {expanded && (
         <CardBody className="space-y-3 border-t border-slate-100 pt-3">
@@ -297,7 +303,7 @@ function SectionCard({
             ))}
           </div>
 
-          <div className="flex flex-wrap items-end gap-2 border-t border-slate-50 pt-3">
+          <div className="flex flex-col gap-2 border-t border-slate-50 pt-3 sm:flex-row sm:flex-wrap sm:items-end">
             <FormField label="New requirement" required>
               <Input
                 value={newReqLabel}
@@ -306,16 +312,17 @@ function SectionCard({
                 className={compact}
               />
             </FormField>
-            <Button size="sm" variant="secondary" loading={addingReq} onClick={onAddRequirement}>
+            <Button size="sm" variant="secondary" className="w-full sm:w-auto" loading={addingReq} onClick={onAddRequirement}>
               Add item
             </Button>
-            <Button size="sm" variant="ghost" onClick={onDeleteSection}>
+            <Button size="sm" variant="ghost" className="w-full sm:w-auto" onClick={onDeleteSection}>
               Remove section
             </Button>
           </div>
         </CardBody>
       )}
-    </Card>
+      </Card>
+    </div>
   );
 }
 
@@ -331,31 +338,35 @@ function RequirementRow({
   const [optionsText, setOptionsText] = useState((req.options ?? []).join(", "));
 
   return (
-    <div className="grid gap-2 rounded-lg border border-slate-100 bg-slate-50/40 p-2.5 sm:grid-cols-12 sm:items-center">
-      <div className="sm:col-span-4">
-        <Input
-          defaultValue={req.label}
-          className={compact}
-          onBlur={(e) => {
-            if (e.target.value !== req.label) onUpdate({ label: e.target.value });
-          }}
-        />
+    <div className="space-y-2 rounded-lg border border-slate-100 bg-slate-50/40 p-2.5 md:space-y-0 md:grid md:gap-2 md:grid-cols-12 md:items-center">
+      <div className="md:col-span-4">
+        <FormField label="Label">
+          <Input
+            defaultValue={req.label}
+            className={compact}
+            onBlur={(e) => {
+              if (e.target.value !== req.label) onUpdate({ label: e.target.value });
+            }}
+          />
+        </FormField>
       </div>
-      <div className="sm:col-span-2">
-        <Select
-          value={req.field_type}
-          onChange={(e) => onUpdate({ field_type: e.target.value })}
-          className={compact}
-        >
-          {FIELD_TYPES.map((t) => (
-            <option key={t.value} value={t.value}>
-              {t.label}
-            </option>
-          ))}
-        </Select>
+      <div className="md:col-span-2">
+        <FormField label="Field type">
+          <Select
+            value={req.field_type}
+            onChange={(e) => onUpdate({ field_type: e.target.value })}
+            className={compact}
+          >
+            {FIELD_TYPES.map((t) => (
+              <option key={t.value} value={t.value}>
+                {t.label}
+              </option>
+            ))}
+          </Select>
+        </FormField>
       </div>
-      <div className="sm:col-span-2">
-        <label className="flex items-center gap-1.5 text-[11px] text-slate-600">
+      <div className="md:col-span-2">
+        <label className="flex items-center gap-1.5 pt-5 text-[11px] text-slate-600 md:pt-0">
           <input
             type="checkbox"
             checked={req.is_required}
@@ -366,31 +377,29 @@ function RequirementRow({
         </label>
       </div>
       {req.field_type === "select" && (
-        <div className="sm:col-span-3">
-          <Input
-            value={optionsText}
-            onChange={(e) => setOptionsText(e.target.value)}
-            placeholder="Option A, Option B"
-            className={compact}
-            onBlur={() =>
-              onUpdate({
-                options: optionsText
-                  .split(",")
-                  .map((s) => s.trim())
-                  .filter(Boolean),
-              })
-            }
-          />
+        <div className="md:col-span-3">
+          <FormField label="Options">
+            <Input
+              value={optionsText}
+              onChange={(e) => setOptionsText(e.target.value)}
+              placeholder="Option A, Option B"
+              className={compact}
+              onBlur={() =>
+                onUpdate({
+                  options: optionsText
+                    .split(",")
+                    .map((s) => s.trim())
+                    .filter(Boolean),
+                })
+              }
+            />
+          </FormField>
         </div>
       )}
-      <div className="sm:col-span-1 sm:text-right">
-        <button
-          type="button"
-          onClick={onDelete}
-          className="text-[11px] text-slate-400 hover:text-red-600"
-        >
+      <div className="md:col-span-1 md:text-right">
+        <Button size="sm" variant="ghost" className="w-full md:w-auto" onClick={onDelete}>
           Remove
-        </button>
+        </Button>
       </div>
     </div>
   );

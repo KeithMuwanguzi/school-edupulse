@@ -9,6 +9,7 @@
  * never bloat the initial bundle or run during SSR.
  */
 import type { ReportCardPreviewOut } from "@/lib/types";
+import { REPORT_CARD_A4_WIDTH_MM } from "./reportCardConstants";
 
 const A4_WIDTH_MM = 210;
 const A4_HEIGHT_MM = 297;
@@ -54,14 +55,29 @@ function triggerDownload(blob: Blob, filename: string): void {
   setTimeout(() => URL.revokeObjectURL(url), 1000);
 }
 
-/** Export a single on-screen report-card element to a downloaded PDF. */
+/** Export a single report-card element to a downloaded PDF (always full A4). */
 export async function exportElementToPdf(
   element: HTMLElement,
   filename: string,
 ): Promise<void> {
-  const canvas = await elementToCanvas(element);
-  const blob = await canvasToPdfBlob(canvas);
-  triggerDownload(blob, filename.endsWith(".pdf") ? filename : `${filename}.pdf`);
+  const page = element.closest(".report-card-page") ?? element;
+  const host = document.createElement("div");
+  host.style.position = "fixed";
+  host.style.left = "-10000px";
+  host.style.top = "0";
+  host.style.width = REPORT_CARD_A4_WIDTH_MM;
+  host.style.background = "#ffffff";
+  document.body.appendChild(host);
+  const clone = page.cloneNode(true) as HTMLElement;
+  host.appendChild(clone);
+  await new Promise((r) => setTimeout(r, 80));
+  try {
+    const canvas = await elementToCanvas(clone.querySelector(".report-card-print") as HTMLElement ?? clone);
+    const blob = await canvasToPdfBlob(canvas);
+    triggerDownload(blob, filename.endsWith(".pdf") ? filename : `${filename}.pdf`);
+  } finally {
+    host.remove();
+  }
 }
 
 export interface ClassExportItem {
@@ -99,7 +115,7 @@ export async function exportClassZip(
   host.style.position = "fixed";
   host.style.left = "-10000px";
   host.style.top = "0";
-  host.style.width = "820px";
+  host.style.width = REPORT_CARD_A4_WIDTH_MM;
   host.style.background = "#ffffff";
   document.body.appendChild(host);
 

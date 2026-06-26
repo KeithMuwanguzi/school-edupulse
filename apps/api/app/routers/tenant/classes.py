@@ -83,6 +83,30 @@ async def setup_primary_classes(
     return result
 
 
+@router.post("/classes/setup-nursery", response_model=list[ClassOut])
+async def setup_nursery_classes(
+    request: Request,
+    ctx: TenantContext = Depends(_admin),
+    _: TenantContext = Depends(_academics),
+    session: AsyncSession = Depends(get_session),
+) -> list[ClassOut]:
+    await apply_tenant_guc(session, ctx.tenant_id)
+    result = await class_service.setup_nursery_classes(session, ctx.tenant_id)
+    await record_audit(
+        session,
+        actor_type=ActorType.tenant_user,
+        actor_id=ctx.user_id,
+        tenant_id=ctx.tenant_id,
+        action="class.setup_nursery",
+        resource_type="class",
+        resource_id=ctx.tenant_id,
+        metadata={"count": len(result)},
+        ip_address=request.client.host if request.client else None,
+    )
+    await session.commit()
+    return result
+
+
 @router.patch("/classes/{class_id}", response_model=ClassOut)
 async def update_class(
     class_id: UUID,

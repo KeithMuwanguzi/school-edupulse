@@ -319,6 +319,34 @@ async def test_import_ignores_provided_number(client, admin_headers):
     assert len(set(numbers)) == 2
 
 
+async def test_import_skips_duplicate_name_in_class(client, admin_headers):
+    headers = await _headers(client, admin_headers, "STU13B")
+    await _create_class(client, headers, "P3")
+    payload = import_row_payload(first_name="Repeat", last_name="Learner", class_level="P3")
+
+    first = await client.post(
+        "/api/v1/tenant/students/import",
+        json={"rows": [payload], "skip_duplicates": True},
+        headers=headers,
+    )
+    assert first.status_code == 200, first.text
+    assert first.json()["created"] == 1
+
+    second = await client.post(
+        "/api/v1/tenant/students/import",
+        json={"rows": [payload], "skip_duplicates": True},
+        headers=headers,
+    )
+    assert second.status_code == 200, second.text
+    body = second.json()
+    assert body["created"] == 0
+    assert body["skipped"] == 1
+    assert body["results"][0]["status"] == "skipped"
+
+    listed = await client.get("/api/v1/tenant/students", headers=headers)
+    assert len(listed.json()["items"]) == 1
+
+
 async def test_bulk_assign_students(client, admin_headers):
     headers = await _headers(client, admin_headers, "STU14")
     p3 = await _create_class(client, headers, "P3")

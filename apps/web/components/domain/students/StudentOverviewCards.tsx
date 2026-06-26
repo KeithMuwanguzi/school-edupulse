@@ -3,7 +3,7 @@
 import { cn } from "@/lib/cn";
 import type { RosterScope, RosterSummaryOut } from "@/lib/types";
 
-const LEVELS = ["P1", "P2", "P3", "P4", "P5", "P6", "P7"] as const;
+import { ALL_CLASS_LEVELS } from "@/lib/schoolLevels";
 
 interface StudentOverviewCardsProps {
   summary: RosterSummaryOut;
@@ -16,7 +16,7 @@ export function StudentOverviewCards({ summary, onSelect }: StudentOverviewCards
   return (
     <div className="space-y-3">
       <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-4">
-        {LEVELS.map((level) => {
+        {ALL_CLASS_LEVELS.map((level) => {
           const row = byLevel.get(level);
           const count = row?.count ?? 0;
           const streamCount = row?.streams.filter((s) => s.count > 0).length ?? 0;

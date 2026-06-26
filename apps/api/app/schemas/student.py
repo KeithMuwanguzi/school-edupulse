@@ -7,6 +7,8 @@ from uuid import UUID
 
 from pydantic import BaseModel, Field, field_validator
 
+from app.core.school_levels import CLASS_LEVEL_VALUES
+
 STUDENT_NUMBER_RE = re.compile(r"^\d{4,20}$")
 
 GENDERS = {"male", "female"}
@@ -359,8 +361,8 @@ class StudentImportRow(BaseModel):
         v = v.strip().upper()
         if not v:
             return None
-        if v not in {f"P{i}" for i in range(1, 8)}:
-            raise ValueError("class_level must be P1–P7")
+        if v not in CLASS_LEVEL_VALUES:
+            raise ValueError("class_level must be a valid nursery or primary level")
         return v
 
     @field_validator("gender")

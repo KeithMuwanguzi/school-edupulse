@@ -8,11 +8,13 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.db import apply_tenant_guc, get_session
 from app.core.dependencies import Principal, get_principal
+from app.core.errors import ForbiddenError
 from app.core.rate_limit import enforce_login_limits
 from app.models.enums import ActorType, UserType
 from app.models.platform import PlatformAdmin, Tenant
 from app.models.user import Role, TenantUser
 from app.schemas.auth import (
+    ChangePasswordRequest,
     MeResponse,
     PlatformLoginRequest,
     RefreshRequest,
@@ -20,7 +22,7 @@ from app.schemas.auth import (
     TenantSummary,
     TokenResponse,
 )
-from app.services import auth_service
+from app.services import auth_service, tenant_user_service
 from app.services.audit_service import record_audit
 from app.services.subscription_service import (
     effective_module_keys,
@@ -42,6 +44,7 @@ async def platform_login(
 ) -> TokenResponse:
     await enforce_login_limits(_client_ip(request), body.email)
     admin = await auth_service.authenticate_platform(session, body.email, body.password)
+    admin.last_login_at = datetime.now(timezone.utc)
     claims = await auth_service.build_claims(session, UserType.platform_admin, admin.id)
     tokens = await auth_service.issue_tokens(session, UserType.platform_admin, admin.id, claims)
     await record_audit(
@@ -120,6 +123,7 @@ async def me(
             name=admin.name,
             email=admin.email,
             role="platform_admin",
+            must_change_password=admin.must_change_password,
         )
 
     # Reading tenant_users requires the RLS GUC for this tenant.
@@ -141,4 +145,43 @@ async def me(
             id=tenant.id, school_code=tenant.school_code, status=tenant.status.value
         ),
         modules=modules,
+        must_change_password=user.must_change_password,
     )
+
+
+@router.post("/tenant/change-password", response_model=TokenResponse)
+async def tenant_change_password(
+    body: ChangePasswordRequest,
+    request: Request,
+    principal: Principal = Depends(get_principal),
+    session: AsyncSession = Depends(get_session),
+) -> TokenResponse:
+    if principal.type != "tenant_user" or principal.tenant_id is None:
+        raise ForbiddenError("Tenant access required.")
+    await apply_tenant_guc(session, principal.tenant_id)
+    await tenant_user_service.change_password(
+        session,
+        principal.tenant_id,
+        principal.user_id,
+        current_password=body.current_password,
+        new_password=body.new_password,
+    )
+    claims = await auth_service.build_claims(
+        session, UserType.tenant_user, principal.user_id
+    )
+    tokens = await auth_service.issue_tokens(
+        session, UserType.tenant_user, principal.user_id, claims
+    )
+    await record_audit(
+        session,
+        actor_type=ActorType.tenant_user,
+        actor_id=principal.user_id,
+        tenant_id=principal.tenant_id,
+        action="auth.password_changed",
+        resource_type="tenant_user",
+        resource_id=principal.user_id,
+        ip_address=_client_ip(request),
+        user_agent=request.headers.get("user-agent"),
+    )
+    await session.commit()
+    return tokens

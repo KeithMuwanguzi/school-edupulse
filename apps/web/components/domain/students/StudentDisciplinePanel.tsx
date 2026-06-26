@@ -8,6 +8,7 @@ import { Select } from "@/components/ui/Select";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { Icon } from "@/components/ui/Icon";
 import { useToast } from "@/components/ui/Toast";
+import { useConfirm } from "@/components/ui/Dialog";
 import { parseError } from "@/lib/apiError";
 import type { StudentDisciplineOut } from "@/lib/types";
 import {
@@ -76,6 +77,7 @@ interface StudentDisciplinePanelProps {
 
 export function StudentDisciplinePanel({ studentId, records, isAdmin }: StudentDisciplinePanelProps) {
   const { toast } = useToast();
+  const confirm = useConfirm();
   const [adding, setAdding] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [form, setForm] = useState<DiscForm>(emptyForm());
@@ -121,7 +123,13 @@ export function StudentDisciplinePanel({ studentId, records, isAdmin }: StudentD
   }
 
   async function remove(r: StudentDisciplineOut) {
-    if (!window.confirm("Remove this incident?")) return;
+    const ok = await confirm({
+      title: "Remove incident",
+      description: "Remove this discipline incident from the record?",
+      confirmLabel: "Remove",
+      tone: "danger",
+    });
+    if (!ok) return;
     try {
       await deleteDiscipline(r.id).unwrap();
       toast("Incident removed.", "success");

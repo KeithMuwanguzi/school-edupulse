@@ -45,7 +45,10 @@ def _now() -> dt.datetime:
 # --- Credential verification --------------------------------------------
 async def authenticate_platform(session: AsyncSession, email: str, password: str) -> PlatformAdmin:
     admin = await session.scalar(
-        select(PlatformAdmin).where(PlatformAdmin.email == email.lower())
+        select(PlatformAdmin).where(
+            PlatformAdmin.email == email.lower(),
+            PlatformAdmin.deleted_at.is_(None),
+        )
     )
     if not admin or not admin.is_active or not verify_password(password, admin.password_hash):
         raise InvalidCredentialsError("Email or password is incorrect.")
@@ -103,9 +106,14 @@ async def build_claims(session: AsyncSession, user_type: UserType, user_id: UUID
     propagate on refresh)."""
     if user_type == UserType.platform_admin:
         admin = await session.get(PlatformAdmin, user_id)
-        if not admin or not admin.is_active:
+        if not admin or not admin.is_active or admin.deleted_at is not None:
             raise TokenError("Account is no longer active.")
-        return {"sub": str(admin.id), "type": "platform_admin", "role": "platform_admin"}
+        return {
+            "sub": str(admin.id),
+            "type": "platform_admin",
+            "role": "platform_admin",
+            "must_change_password": bool(admin.must_change_password),
+        }
 
     # tenant_user — auth paths have no tenant GUC yet; bypass RLS to load claims.
     await apply_bypass_guc(session)
@@ -129,6 +137,7 @@ async def build_claims(session: AsyncSession, user_type: UserType, user_id: UUID
         "role": role_key,
         "school_code": tenant.school_code if tenant else None,
         "modules": modules,
+        "must_change_password": bool(user.must_change_password),
     }
 
 
@@ -159,6 +168,7 @@ async def issue_tokens(
         access_token=access,
         refresh_token=refresh,
         expires_in=settings.jwt_access_expire_minutes * 60,
+        must_change_password=bool(claims.get("must_change_password")),
     )
 
 

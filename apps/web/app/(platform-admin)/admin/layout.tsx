@@ -9,6 +9,7 @@ const NAV_GROUPS = [
     label: "Platform",
     items: [
       { label: "Schools", href: "/admin", icon: "building" },
+      { label: "Administrators", href: "/admin/admins", icon: "users" },
       { label: "Logs", href: "/admin/logs", icon: "list" },
       { label: "System", href: "/admin/system", icon: "settings" },
     ],

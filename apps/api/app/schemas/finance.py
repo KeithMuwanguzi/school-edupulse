@@ -6,12 +6,21 @@ from uuid import UUID
 
 from pydantic import BaseModel, Field, field_validator
 
-from app.models.enums import ClassLevel
+from app.core.school_levels import CLASS_LEVEL_VALUES
 
 FEE_APPLIES_TO = frozenset({"all", "class_level", "day", "boarder"})
 FEE_STRUCTURE_STATUS = frozenset({"draft", "active", "archived"})
 INVOICE_STATUS = frozenset({"unpaid", "partial", "paid", "waived"})
 PAYMENT_METHODS = frozenset({"cash", "bank_transfer", "mtn_momo", "airtel_money", "other"})
+
+
+def _validate_class_level(v: str | None, applies: str) -> str | None:
+    if applies == "class_level":
+        if not v:
+            raise ValueError("class_level is required when applies_to is class_level")
+        if v not in CLASS_LEVEL_VALUES:
+            raise ValueError("class_level must be a valid nursery or primary level")
+    return v
 
 
 class FeeStructureLineOut(BaseModel):
@@ -44,12 +53,7 @@ class FeeStructureLineCreate(BaseModel):
     @classmethod
     def _class_level(cls, v: str | None, info) -> str | None:
         applies = info.data.get("applies_to", "all")
-        if applies == "class_level":
-            if not v:
-                raise ValueError("class_level is required when applies_to is class_level")
-            if v not in {c.value for c in ClassLevel}:
-                raise ValueError("class_level must be P1–P7")
-        return v
+        return _validate_class_level(v, applies)
 
 
 class FeeStructureLineUpdate(BaseModel):
@@ -70,6 +74,14 @@ class FeeStructureLineUpdate(BaseModel):
             raise ValueError("applies_to must be all, class_level, day, or boarder")
         return v
 
+    @field_validator("class_level")
+    @classmethod
+    def _class_level(cls, v: str | None, info) -> str | None:
+        applies = info.data.get("applies_to")
+        if applies is None:
+            return v
+        return _validate_class_level(v, applies)
+
 
 class FeeStructureOut(BaseModel):
     id: UUID
@@ -82,6 +94,9 @@ class FeeStructureOut(BaseModel):
     activated_at: dt.datetime | None = None
     line_count: int
     total_ugx: int
+    catalog_total_ugx: int
+    expected_invoiced_ugx: int
+    level_amounts_ugx: dict[str, int]
     lines: list[FeeStructureLineOut]
 
 
@@ -163,12 +178,15 @@ class FinanceSummaryOut(BaseModel):
     term_label: str
     active_structure_id: UUID | None = None
     active_structure_name: str | None = None
+    class_id: UUID | None = None
+    class_label: str | None = None
     registered_count: int
     invoiced_count: int
     not_invoiced_count: int
     total_invoiced_ugx: int
     total_collected_ugx: int
     total_outstanding_ugx: int
+    expected_invoiced_ugx: int | None = None
     counts: dict[str, int]
 
 

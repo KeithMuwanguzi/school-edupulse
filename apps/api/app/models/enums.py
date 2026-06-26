@@ -60,14 +60,18 @@ class TermStatus(str, enum.Enum):
 
 
 class NcdcCycle(str, enum.Enum):
-    """NCDC primary curriculum cycle (§2.3)."""
+    """NCDC curriculum cycle — ECD nursery and primary (§2.3)."""
+    ecd = "ecd"  # Baby, Middle, Top — early childhood
     cycle_1 = "cycle_1"  # P1–P3 thematic
     cycle_2 = "cycle_2"  # P4 transition
     cycle_3 = "cycle_3"  # P5–P7 subject-based
 
 
 class ClassLevel(str, enum.Enum):
-    """Uganda primary class levels (P1–P7 only)."""
+    """Uganda nursery (ECD) and primary class levels."""
+    BABY = "BABY"
+    MIDDLE = "MIDDLE"
+    TOP = "TOP"
     P1 = "P1"
     P2 = "P2"
     P3 = "P3"

@@ -27,6 +27,7 @@ from app.core.security import hash_password
 from app.services import cache_service
 from app.services.academic_service import seed_calendar
 from app.services.audit_service import record_audit
+from app.services.school_email_service import assert_school_email_available
 from app.services.subscription_service import create_initial_subscriptions
 
 
@@ -47,6 +48,8 @@ async def onboard_school(
         select(School.id).where(School.emis_number == data.emis_number)
     ):
         raise DuplicateEmisError(f"EMIS number '{data.emis_number}' is already registered.")
+
+    school_email = await assert_school_email_available(session, str(data.email))
 
     role = await session.scalar(select(Role).where(Role.role_key == "school_admin"))
     if role is None:
@@ -75,7 +78,7 @@ async def onboard_school(
         parish_id=data.parish_id,
         address_line=data.address_line,
         phone=data.phone,
-        email=data.email,
+        email=school_email,
         head_teacher_name=data.head_teacher_name,
         contact_person_name=data.contact_person_name,
         contact_person_phone=data.contact_person_phone,
@@ -89,9 +92,10 @@ async def onboard_school(
         tenant_id=tenant.id,
         role_id=role.id,
         login_id=data.admin_user.login_id,
-        email=data.admin_user.email,
+        email=school_email,
         password_hash=hash_password(data.admin_user.password),
         name=data.admin_user.name,
+        must_change_password=True,
     )
     session.add(admin)
     await session.flush()

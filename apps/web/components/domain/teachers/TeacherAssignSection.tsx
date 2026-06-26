@@ -15,17 +15,13 @@ import {
 } from "@/store/api/skulpulseApi";
 import { useToast } from "@/components/ui/Toast";
 
+import { ALL_CLASS_LEVELS, LEVEL_CYCLE } from "@/lib/schoolLevels";
+
 const compactControl = "h-7 text-[12px]";
 
-const LEVEL_CYCLE: Record<string, string[]> = {
-  P1: ["cycle_1"],
-  P2: ["cycle_1"],
-  P3: ["cycle_1"],
-  P4: ["cycle_2"],
-  P5: ["cycle_3"],
-  P6: ["cycle_3"],
-  P7: ["cycle_3"],
-};
+const LEVEL_CYCLES: Record<string, string[]> = Object.fromEntries(
+  ALL_CLASS_LEVELS.map((level) => [level, [LEVEL_CYCLE[level]]]),
+);
 
 interface TeacherAssignSectionProps {
   onBack: () => void;
@@ -49,7 +45,7 @@ export function TeacherAssignSection({ onBack }: TeacherAssignSectionProps) {
 
   const eligibleSubjects = useMemo(() => {
     if (!selectedClass) return subjects.filter((s) => s.is_active);
-    const cycles = LEVEL_CYCLE[selectedClass.level] ?? [];
+    const cycles = LEVEL_CYCLES[selectedClass.level] ?? [];
     return subjects.filter(
       (s) => s.is_active && s.ncdc_cycles.some((c) => cycles.includes(c)),
     );

@@ -9,7 +9,12 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from app.core.errors import ConflictError, NotFoundError, ValidationError
-from app.models.enums import ClassLevel
+from app.core.school_levels import (
+    LEVEL_LABELS,
+    LEVEL_ORDER,
+    NURSERY_LEVELS,
+    PRIMARY_LEVELS,
+)
 from app.models.school_class import ClassStream, SchoolClass
 from app.schemas.school_class import (
     ClassCreate,
@@ -19,26 +24,6 @@ from app.schemas.school_class import (
     StreamOut,
     StreamUpdate,
 )
-
-LEVEL_LABELS: dict[ClassLevel, str] = {
-    ClassLevel.P1: "Primary One",
-    ClassLevel.P2: "Primary Two",
-    ClassLevel.P3: "Primary Three",
-    ClassLevel.P4: "Primary Four",
-    ClassLevel.P5: "Primary Five",
-    ClassLevel.P6: "Primary Six",
-    ClassLevel.P7: "Primary Seven",
-}
-
-LEVEL_ORDER: dict[ClassLevel, int] = {
-    ClassLevel.P1: 1,
-    ClassLevel.P2: 2,
-    ClassLevel.P3: 3,
-    ClassLevel.P4: 4,
-    ClassLevel.P5: 5,
-    ClassLevel.P6: 6,
-    ClassLevel.P7: 7,
-}
 
 
 def _stream_out(row: ClassStream) -> StreamOut:
@@ -101,9 +86,15 @@ async def create_class(
     return _class_out(row)
 
 
-async def setup_primary_classes(session: AsyncSession, tenant_id: UUID) -> list[ClassOut]:
+async def _setup_levels(
+    session: AsyncSession,
+    tenant_id: UUID,
+    levels: tuple,
+    *,
+    empty_message: str,
+) -> list[ClassOut]:
     created: list[ClassOut] = []
-    for level in ClassLevel:
+    for level in levels:
         exists = await session.scalar(
             select(SchoolClass.id).where(
                 SchoolClass.tenant_id == tenant_id,
@@ -133,8 +124,26 @@ async def setup_primary_classes(session: AsyncSession, tenant_id: UUID) -> list[
             )
         )
     if not created:
-        raise ValidationError("All P1–P7 classes already exist.")
+        raise ValidationError(empty_message)
     return created
+
+
+async def setup_nursery_classes(session: AsyncSession, tenant_id: UUID) -> list[ClassOut]:
+    return await _setup_levels(
+        session,
+        tenant_id,
+        NURSERY_LEVELS,
+        empty_message="All nursery classes (Baby–Top) already exist.",
+    )
+
+
+async def setup_primary_classes(session: AsyncSession, tenant_id: UUID) -> list[ClassOut]:
+    return await _setup_levels(
+        session,
+        tenant_id,
+        PRIMARY_LEVELS,
+        empty_message="All P1–P7 classes already exist.",
+    )
 
 
 async def update_class(

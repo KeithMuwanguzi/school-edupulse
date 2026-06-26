@@ -16,6 +16,7 @@ import { Table, TBody, TD, TH, THead, TR } from "@/components/ui/Table";
 import { ModulePicker } from "@/components/domain/ModulePicker";
 import { SchoolBadgeUpload } from "@/components/domain/school/SchoolBadgeUpload";
 import { useToast } from "@/components/ui/Toast";
+import { useConfirm, useRevealSecret } from "@/components/ui/Dialog";
 import { parseError } from "@/lib/apiError";
 import {
   useEstimateMutation,
@@ -23,6 +24,8 @@ import {
   useListSchoolUsersQuery,
   useModuleCatalogQuery,
   useReplaceModulesMutation,
+  useResetPlatformAdminCredentialsMutation,
+  useResetPlatformUserPasswordMutation,
   useUpdateSchoolMutation,
   useUploadPlatformSchoolBadgeMutation,
   useDeletePlatformSchoolBadgeMutation,
@@ -31,6 +34,8 @@ import {
 export default function SchoolDetailPage() {
   const { tenantId } = useParams<{ tenantId: string }>();
   const { toast } = useToast();
+  const confirm = useConfirm();
+  const revealSecret = useRevealSecret();
   const { data, isLoading, isError, error } = useGetSchoolQuery(tenantId);
   const { data: catalog } = useModuleCatalogQuery();
   const { data: users } = useListSchoolUsersQuery(tenantId);
@@ -39,6 +44,8 @@ export default function SchoolDetailPage() {
   const [replaceModules, { isLoading: savingModules }] = useReplaceModulesMutation();
   const [uploadBadge, { isLoading: uploadingBadge }] = useUploadPlatformSchoolBadgeMutation();
   const [deleteBadge, { isLoading: removingBadge }] = useDeletePlatformSchoolBadgeMutation();
+  const [resetAdminCreds, { isLoading: resettingAdmin }] = useResetPlatformAdminCredentialsMutation();
+  const [resetUserPassword, { isLoading: resettingUser }] = useResetPlatformUserPasswordMutation();
 
   const [baseFee, setBaseFee] = useState(100000);
   const [modules, setModules] = useState<string[]>([]);
@@ -47,6 +54,7 @@ export default function SchoolDetailPage() {
     motto: "",
     head_teacher_name: "",
     phone: "",
+    email: "",
     ownership: "private",
     status: "trial",
   });
@@ -63,6 +71,7 @@ export default function SchoolDetailPage() {
       motto: data.profile.motto ?? "",
       head_teacher_name: data.profile.head_teacher_name ?? "",
       phone: data.profile.phone ?? "",
+      email: data.profile.email ?? "",
       ownership: data.profile.ownership,
       status: data.status,
     });
@@ -72,6 +81,10 @@ export default function SchoolDetailPage() {
   if (isError || !data) return <ErrorBanner message={parseError(error).message} />;
 
   async function saveProfile() {
+    if (!profile.email.trim()) {
+      toast("School email is required.", "error");
+      return;
+    }
     try {
       await updateSchool({
         tenantId,
@@ -80,6 +93,7 @@ export default function SchoolDetailPage() {
           motto: profile.motto || null,
           head_teacher_name: profile.head_teacher_name || null,
           phone: profile.phone || null,
+          email: profile.email.trim(),
           ownership: profile.ownership,
           status: profile.status,
           version: data!.profile.version,
@@ -96,6 +110,61 @@ export default function SchoolDetailPage() {
     try {
       await replaceModules({ tenantId, module_keys: modules }).unwrap();
       toast("Modules updated.", "success");
+    } catch (err) {
+      const p = parseError(err);
+      toast(p.message, "error", p.requestId);
+    }
+  }
+
+  async function emailAdminCredentials() {
+    const ok = await confirm({
+      title: "Reset administrator credentials",
+      description: "Generate a new administrator password and email it to the school contact?",
+      confirmLabel: "Send credentials",
+    });
+    if (!ok) return;
+    try {
+      const result = await resetAdminCreds(tenantId).unwrap();
+      if (result.email_sent && result.email_recipient) {
+        toast(`Credentials emailed to ${result.email_recipient}.`, "success");
+      } else if (result.temporary_password) {
+        toast(result.message, "warning");
+        await revealSecret({
+          title: "Temporary admin password",
+          description: "Email could not be sent. Copy this password and share it securely.",
+          secret: result.temporary_password,
+          secretLabel: "Admin password",
+        });
+      } else {
+        toast(result.message, "success");
+      }
+    } catch (err) {
+      const p = parseError(err);
+      toast(p.message, "error", p.requestId);
+    }
+  }
+
+  async function resetPortalUser(userId: string, username: string) {
+    const ok = await confirm({
+      title: "Reset password",
+      description: `Generate a temporary password for ${username}?`,
+      confirmLabel: "Reset password",
+    });
+    if (!ok) return;
+    try {
+      const result = await resetUserPassword({ tenantId, userId }).unwrap();
+      if (result.email_sent && result.email_recipient) {
+        toast(`Password emailed to ${result.email_recipient}.`, "success");
+      } else if (result.temporary_password) {
+        toast(result.message, "success");
+        await revealSecret({
+          title: "Temporary password",
+          description: "Copy this password now. It will not be shown again.",
+          secret: result.temporary_password,
+        });
+      } else {
+        toast(result.message, "success");
+      }
     } catch (err) {
       const p = parseError(err);
       toast(p.message, "error", p.requestId);
@@ -154,6 +223,14 @@ export default function SchoolDetailPage() {
               <FormField label="Phone">
                 <Input value={profile.phone} onChange={(e) => setProfile((p) => ({ ...p, phone: e.target.value }))} />
               </FormField>
+              <FormField label="School email" hint="Required — credentials and resets are sent here" required>
+                <Input
+                  type="email"
+                  value={profile.email}
+                  onChange={(e) => setProfile((p) => ({ ...p, email: e.target.value }))}
+                  required
+                />
+              </FormField>
               <FormField label="Ownership">
                 <Select value={profile.ownership} onChange={(e) => setProfile((p) => ({ ...p, ownership: e.target.value }))}>
                   <option value="private">Private</option>
@@ -173,11 +250,18 @@ export default function SchoolDetailPage() {
           </Card>
 
           <Card>
-            <CardHeader title="Portal accounts" />
+            <CardHeader
+              title="Portal accounts"
+              action={
+                <Button size="sm" variant="secondary" loading={resettingAdmin} onClick={() => void emailAdminCredentials()}>
+                  Email admin credentials
+                </Button>
+              }
+            />
             <CardBody className="p-0">
               <Table>
                 <THead>
-                  <TR><TH>Name</TH><TH>Username</TH><TH>Role</TH><TH>Status</TH></TR>
+                  <TR><TH>Name</TH><TH>Username</TH><TH>Role</TH><TH>Status</TH><TH></TH></TR>
                 </THead>
                 <TBody>
                   {users?.map((u) => (
@@ -186,6 +270,16 @@ export default function SchoolDetailPage() {
                       <TD><code className="text-xs">{u.username}</code></TD>
                       <TD className="capitalize">{u.role.replace("_", " ")}</TD>
                       <TD>{u.status}</TD>
+                      <TD className="text-right">
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          loading={resettingUser}
+                          onClick={() => void resetPortalUser(u.id, u.username)}
+                        >
+                          Reset
+                        </Button>
+                      </TD>
                     </TR>
                   ))}
                 </TBody>

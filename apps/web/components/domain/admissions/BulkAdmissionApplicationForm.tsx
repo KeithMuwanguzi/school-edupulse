@@ -16,6 +16,7 @@ import {
   useListClassesQuery,
 } from "@/store/api/skulpulseApi";
 import { useToast } from "@/components/ui/Toast";
+import { ALL_CLASS_LEVELS } from "@/lib/schoolLevels";
 import {
   GENDER_OPTIONS,
   RELATIONSHIP_OPTIONS,
@@ -24,7 +25,6 @@ import {
 } from "../students/studentOptions";
 
 const compactControl = "h-7 text-[12px]";
-const LEVELS = ["P1", "P2", "P3", "P4", "P5", "P6", "P7"];
 
 interface ApplicantRow {
   id: string;
@@ -169,7 +169,7 @@ export function BulkAdmissionApplicationForm() {
           <FormField label="Entry class">
             <Select value={classLevel} onChange={(e) => setClassLevel(e.target.value)} className={compactControl}>
               <option value="">—</option>
-              {LEVELS.map((l) => (
+              {ALL_CLASS_LEVELS.map((l) => (
                 <option key={l} value={l}>{l}</option>
               ))}
             </Select>
@@ -215,7 +215,89 @@ export function BulkAdmissionApplicationForm() {
           </FormField>
         </div>
 
-        <div className="overflow-x-auto rounded-lg border border-slate-200">
+        <div className="space-y-2 md:hidden">
+          {rows.map((row, idx) => (
+            <div key={row.id} className="rounded-lg border border-slate-200 bg-white p-3">
+              <div className="mb-2 flex items-center justify-between">
+                <span className="text-[11px] font-semibold text-slate-500">Applicant {idx + 1}</span>
+                <button
+                  type="button"
+                  onClick={() => removeRow(row.id)}
+                  className="rounded p-1 text-slate-300 hover:bg-slate-100 hover:text-slate-500"
+                  aria-label={`Remove applicant ${idx + 1}`}
+                >
+                  <Icon name="x" size={12} />
+                </button>
+              </div>
+              <div className="grid gap-2 sm:grid-cols-2">
+                <FormField label={STUDENT_NAME_LABELS.last_name} required>
+                  <Input
+                    value={row.last_name}
+                    onChange={(e) => updateRow(row.id, { last_name: e.target.value })}
+                    className={compactControl}
+                  />
+                </FormField>
+                <FormField label={STUDENT_NAME_LABELS.middle_name}>
+                  <Input
+                    value={row.middle_name}
+                    onChange={(e) => updateRow(row.id, { middle_name: e.target.value })}
+                    className={compactControl}
+                  />
+                </FormField>
+                <FormField label={STUDENT_NAME_LABELS.first_name} required>
+                  <Input
+                    value={row.first_name}
+                    onChange={(e) => updateRow(row.id, { first_name: e.target.value })}
+                    className={compactControl}
+                  />
+                </FormField>
+                <FormField label="Gender">
+                  <Select
+                    value={row.gender}
+                    onChange={(e) => updateRow(row.id, { gender: e.target.value })}
+                    className={compactControl}
+                  >
+                    <option value="">—</option>
+                    {GENDER_OPTIONS.map((o) => (
+                      <option key={o.value} value={o.value}>{o.label}</option>
+                    ))}
+                  </Select>
+                </FormField>
+                <FormField label="Date of birth">
+                  <Input
+                    type="date"
+                    value={row.dob}
+                    onChange={(e) => updateRow(row.id, { dob: e.target.value })}
+                    className={compactControl}
+                  />
+                </FormField>
+                <FormField label="Guardian">
+                  <Input
+                    value={row.guardian_name}
+                    onChange={(e) => updateRow(row.id, { guardian_name: e.target.value })}
+                    className={compactControl}
+                  />
+                </FormField>
+                <FormField label="Phone">
+                  <Input
+                    value={row.guardian_phone}
+                    onChange={(e) => updateRow(row.id, { guardian_phone: e.target.value })}
+                    className={compactControl}
+                  />
+                </FormField>
+                <FormField label="Previous school">
+                  <Input
+                    value={row.previous_school}
+                    onChange={(e) => updateRow(row.id, { previous_school: e.target.value })}
+                    className={compactControl}
+                  />
+                </FormField>
+              </div>
+            </div>
+          ))}
+        </div>
+
+        <div className="hidden overflow-x-auto rounded-lg border border-slate-200 md:block">
           <table className="min-w-full text-[11px]">
             <thead>
               <tr className="border-b border-slate-100 bg-slate-50/80 text-left">
@@ -321,8 +403,8 @@ export function BulkAdmissionApplicationForm() {
           </table>
         </div>
 
-        <div className="flex flex-wrap items-center gap-2">
-          <Button size="sm" variant="secondary" onClick={() => setRows((prev) => [...prev, ...initialRows(3)])}>
+        <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center">
+          <Button size="sm" variant="secondary" className="w-full sm:w-auto" onClick={() => setRows((prev) => [...prev, ...initialRows(3)])}>
             <Icon name="plus" size={13} />
             Add 3 rows
           </Button>
@@ -333,11 +415,11 @@ export function BulkAdmissionApplicationForm() {
 
         {result && <ResultSummary result={result} />}
 
-        <div className="flex gap-2">
-          <Button size="sm" variant="ghost" onClick={() => router.push("/app/m/admissions")}>
+        <div className="flex flex-col gap-2 sm:flex-row">
+          <Button size="sm" variant="ghost" className="w-full sm:w-auto" onClick={() => router.push("/app/m/admissions")}>
             Cancel
           </Button>
-          <Button size="sm" loading={isLoading} onClick={() => void submit()}>
+          <Button size="sm" className="w-full sm:w-auto" loading={isLoading} onClick={() => void submit()}>
             Save {filledRows.length || ""} application{filledRows.length === 1 ? "" : "s"}
           </Button>
         </div>

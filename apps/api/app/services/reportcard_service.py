@@ -15,8 +15,9 @@ from app.models.assessment import (
     StudentAssessmentMark,
 )
 from app.models.attendance import AttendanceRecord
+from app.core.school_levels import LEVEL_CYCLE, assessment_mode, level_section
 from app.models.enums import AttendanceStatus, ClassLevel, NcdcCycle
-from app.models.grading import AggregateDivision, GradeRange, GradingScale
+from app.models.grading import AggregateDivision, GradeRange, GradingScale, SubjectGradingAssignment
 from app.models.school import School
 from app.models.school_class import SchoolClass
 from app.models.student import Student
@@ -38,36 +39,6 @@ from app.schemas.reportcard import (
 from app.services import assessment_service, school_badge_service
 from app.services.term_registration_service import _resolve_term, _student_placement
 from app.services.term_roster_service import registered_students_stmt
-
-_LEVEL_CYCLE: dict[ClassLevel, NcdcCycle] = {
-    ClassLevel.P1: NcdcCycle.cycle_1,
-    ClassLevel.P2: NcdcCycle.cycle_1,
-    ClassLevel.P3: NcdcCycle.cycle_1,
-    ClassLevel.P4: NcdcCycle.cycle_2,
-    ClassLevel.P5: NcdcCycle.cycle_3,
-    ClassLevel.P6: NcdcCycle.cycle_3,
-    ClassLevel.P7: NcdcCycle.cycle_3,
-}
-
-
-def _assessment_mode(level: ClassLevel) -> str:
-    """Layout hint. All levels record numeric marks; P7 highlights PLE divisions."""
-    if level == ClassLevel.P7:
-        return "ple"
-    return "subject_ca"
-
-
-_LOWER_PRIMARY = {ClassLevel.P1, ClassLevel.P2, ClassLevel.P3}
-
-
-def _level_section(level: ClassLevel) -> str:
-    """Human-friendly band shown beside the pupil name, matching report styles."""
-    if level in _LOWER_PRIMARY:
-        return "Lower Primary"
-    if level == ClassLevel.P7:
-        return "Upper Primary"
-    return "Upper Primary"
-
 
 async def _grading_key(
     session: AsyncSession,
@@ -105,19 +76,28 @@ async def _primary_scale_for_cycle(
     cycle: NcdcCycle,
     subjects: list[Subject],
 ) -> GradingScale | None:
-    scale_ids = [s.grading_scale_id for s in subjects if s.grading_scale_id is not None]
-    if scale_ids:
-        counts: dict[UUID, int] = {}
-        for scale_id in scale_ids:
-            counts[scale_id] = counts.get(scale_id, 0) + 1
-        primary_id = max(counts, key=counts.get)
-        return await session.scalar(
-            select(GradingScale).where(
-                GradingScale.tenant_id == tenant_id,
-                GradingScale.id == primary_id,
-                GradingScale.deleted_at.is_(None),
+    if subjects:
+        rows = list(
+            await session.scalars(
+                select(SubjectGradingAssignment).where(
+                    SubjectGradingAssignment.tenant_id == tenant_id,
+                    SubjectGradingAssignment.ncdc_cycle == cycle,
+                    SubjectGradingAssignment.subject_id.in_([s.id for s in subjects]),
+                )
             )
         )
+        if rows:
+            counts: dict[UUID, int] = {}
+            for row in rows:
+                counts[row.grading_scale_id] = counts.get(row.grading_scale_id, 0) + 1
+            primary_id = max(counts, key=counts.get)
+            return await session.scalar(
+                select(GradingScale).where(
+                    GradingScale.tenant_id == tenant_id,
+                    GradingScale.id == primary_id,
+                    GradingScale.deleted_at.is_(None),
+                )
+            )
 
     return await session.scalar(
         select(GradingScale)
@@ -205,7 +185,7 @@ async def _resolve_report_comments(
     assessment_mode: str,
     marks_available: bool,
 ) -> tuple[str | None, str | None, str | None, str]:
-    cycle = _LEVEL_CYCLE[school_class.level]
+    cycle = LEVEL_CYCLE[school_class.level]
     scale = await _primary_scale_for_cycle(session, tenant_id, cycle, subjects)
     if scale is None:
         return None, None, None, "no_scale"
@@ -239,8 +219,8 @@ async def _resolve_report_comments(
     if band is None:
         return None, None, None, "no_band"
     return (
-        band.class_teacher_comment,
-        band.head_teacher_comment,
+        None,
+        None,
         band.label,
         "resolved",
     )
@@ -368,7 +348,7 @@ async def list_class_options(
 async def _subjects_for_level(
     session: AsyncSession, tenant_id: UUID, level: ClassLevel
 ) -> list[Subject]:
-    cycle = _LEVEL_CYCLE[level]
+    cycle = LEVEL_CYCLE[level]
     rows = await session.scalars(
         select(Subject)
         .where(
@@ -477,7 +457,7 @@ async def get_preview(
         raise ValidationError("Assign the student to a class before generating a report card.")
 
     subjects = await _subjects_for_level(session, tenant_id, school_class.level)
-    mode = _assessment_mode(school_class.level)
+    mode = assessment_mode(school_class.level)
 
     # Dynamic assessment-set columns for this term (e.g. INTER ASSESS, MID EXAM).
     set_rows = list(
@@ -532,7 +512,7 @@ async def get_preview(
         marks_by_subject.setdefault(subject_id, {})[set_id] = float(score)
 
     primary_scale = await _primary_scale_for_cycle(
-        session, tenant_id, _LEVEL_CYCLE[school_class.level], subjects
+        session, tenant_id, LEVEL_CYCLE[school_class.level], subjects
     )
 
     subject_lines: list[ReportCardSubjectLine] = []
@@ -556,7 +536,7 @@ async def get_preview(
                 session, tenant_id, primary_scale.id, int(round(ca.ca_score))
             )
             if band is not None:
-                subject_comment = band.class_teacher_comment
+                subject_comment = band.comment
 
         subject_marks = marks_by_subject.get(subject.id, {})
         set_scores: list[ReportCardSetScore] = []
@@ -650,7 +630,7 @@ async def get_preview(
             academic_year_label=year.label,
         ),
         assessment_mode=mode,
-        level_section=_level_section(school_class.level),
+        level_section=level_section(school_class.level),
         marks_available=marks_available,
         assessment_sets=assessment_sets,
         subject_lines=subject_lines,

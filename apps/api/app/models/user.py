@@ -47,6 +47,7 @@ class TenantUser(Base, TimestampMixin, SoftDeleteMixin):
     # Per-user module scoping: NULL = inherit the school's full subscribed set;
     # a list narrows this user to that subset (school_admin always gets all).
     allowed_modules: Mapped[list[str] | None] = mapped_column(JSONB, nullable=True)
+    must_change_password: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
     # username (login_id@school_code) is composed in the app layer (§5.3 note).
 
 

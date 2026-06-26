@@ -23,7 +23,8 @@ import {
   useStartRegistrationMutation,
 } from "@/store/api/skulpulseApi";
 import { useToast } from "@/components/ui/Toast";
-import { ClassStreamNavigator } from "./ClassStreamNavigator";
+import { PageToolbar, PageToolbarGroup } from "@/components/ui/PageToolbar";
+import { ClassStreamPicker } from "./ClassStreamPicker";
 import {
   defaultRegistrationScope,
   registrationScopeToQueueParams,
@@ -148,30 +149,32 @@ export function TermRegistrationQueueView({ embedded = false }: { embedded?: boo
   return (
     <div className="space-y-4">
       {embedded ? (
-        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <div className="space-y-3">
           <SettingsStatRow items={stats} />
-          <div className="flex flex-wrap items-center gap-2">
-            <div className="relative">
-              <Icon
-                name="search"
-                size={13}
-                className="pointer-events-none absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400"
+          <PageToolbar>
+            <PageToolbarGroup className="w-full sm:flex-1">
+              <div className="relative w-full sm:max-w-xs">
+                <Icon
+                  name="search"
+                  size={13}
+                  className="pointer-events-none absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400"
+                />
+                <Input
+                  value={query}
+                  onChange={(e) => setQuery(e.target.value)}
+                  placeholder="Search in this roster…"
+                  className="h-9 w-full pl-8 text-[13px] sm:h-7 sm:text-[12px]"
+                  disabled={!scope || scope.kind === "overview"}
+                />
+              </div>
+              <SettingsFilterPills
+                options={STATUS_FILTERS}
+                active={statusFilter}
+                onChange={setStatusFilter}
               />
-              <Input
-                value={query}
-                onChange={(e) => setQuery(e.target.value)}
-                placeholder="Search in this roster…"
-                className="h-7 w-44 pl-8 text-[12px]"
-                disabled={!scope || scope.kind === "overview"}
-              />
-            </div>
-            <SettingsFilterPills
-              options={STATUS_FILTERS}
-              active={statusFilter}
-              onChange={setStatusFilter}
-            />
+            </PageToolbarGroup>
             <RefreshButton onRefresh={refreshAll} isRefreshing={isRefreshing} label="Refresh queue" />
-          </div>
+          </PageToolbar>
         </div>
       ) : (
         <Card>
@@ -208,19 +211,17 @@ export function TermRegistrationQueueView({ embedded = false }: { embedded?: boo
       )}
 
       {scope ? (
-        <div className="flex flex-col gap-4 lg:flex-row">
-          <div className="w-full shrink-0 lg:w-48">
-            <Card className="p-1.5 lg:sticky lg:top-2">
-              <ClassStreamNavigator
-                summary={rosterSummary}
-                scope={scope}
-                registrationMode
-                onChange={setScope}
-              />
-            </Card>
-          </div>
+        <div className="flex flex-col gap-4">
+          <Card className="p-3 lg:p-1.5 lg:sticky lg:top-2">
+            <ClassStreamPicker
+              summary={rosterSummary}
+              scope={scope}
+              registrationMode
+              onChange={setScope}
+            />
+          </Card>
 
-          <div className="min-w-0 flex-1">
+          <div className="min-w-0">
             {queueLoading ? (
               <PageLoader />
             ) : queue.length === 0 ? (
@@ -240,7 +241,62 @@ export function TermRegistrationQueueView({ embedded = false }: { embedded?: boo
                     in roster
                   </span>
                 </div>
-                <div className="overflow-x-auto">
+
+                <div className="space-y-2 p-3 md:hidden">
+                  {queue.map((row) => {
+                    const pct =
+                      row.required_total > 0
+                        ? Math.round((row.required_done / row.required_total) * 100)
+                        : 0;
+                    return (
+                      <div
+                        key={row.student_id}
+                        className="rounded-lg border border-slate-200/80 bg-white p-3"
+                      >
+                        <div className="flex items-start justify-between gap-2">
+                          <div className="min-w-0">
+                            <p className="truncate font-medium text-slate-800">
+                              {row.first_name} {row.last_name}
+                            </p>
+                            <p className="font-mono text-[10px] text-slate-400">{row.student_number}</p>
+                          </div>
+                          <Badge tone={statusTone(row.status)} dot>
+                            {statusLabel(row.status)}
+                          </Badge>
+                        </div>
+                        <div className="mt-2 flex items-center gap-2">
+                          <div className="h-1.5 min-w-[4rem] flex-1 overflow-hidden rounded-full bg-slate-100">
+                            <div
+                              className={cn(
+                                "h-full rounded-full",
+                                pct === 100 ? "bg-brand-600" : "bg-gold-500",
+                              )}
+                              style={{ width: `${pct}%` }}
+                            />
+                          </div>
+                          <span className="text-[10px] text-slate-500">
+                            {row.sections_complete}/{row.sections_total}
+                          </span>
+                        </div>
+                        <Button
+                          size="sm"
+                          variant={row.status === "complete" ? "ghost" : "secondary"}
+                          loading={startingId === row.student_id}
+                          className="mt-3 w-full"
+                          onClick={() => void openRegistration(row.student_id, row.registration_id)}
+                        >
+                          {row.status === "not_started"
+                            ? "Start check-in"
+                            : row.status === "complete"
+                              ? "View"
+                              : "Continue check-in"}
+                        </Button>
+                      </div>
+                    );
+                  })}
+                </div>
+
+                <div className="hidden overflow-x-auto md:block">
                   <table className="min-w-full text-[12px]">
                     <thead>
                       <tr className="border-b border-slate-100 bg-slate-50/60 text-left text-[10px] font-semibold uppercase tracking-wide text-slate-400">

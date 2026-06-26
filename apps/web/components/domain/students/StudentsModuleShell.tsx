@@ -46,13 +46,13 @@ export function StudentsModuleShell({ children }: StudentsModuleShellProps) {
     <div className="space-y-4 animate-fade-rise">
       <div className="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
         <div>
-          <div className="inline-flex rounded-lg border border-slate-200 bg-white p-0.5 shadow-sm">
+          <div className="inline-flex max-w-full overflow-x-auto rounded-lg border border-slate-200 bg-white p-0.5 shadow-sm [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
             {STUDENT_MODULE_TABS.map((tab) => (
               <Link
                 key={tab.key}
                 href={tab.href}
                 className={cn(
-                  "rounded-md px-3 py-1.5 text-[11px] font-medium transition-colors",
+                  "shrink-0 rounded-md px-3 py-1.5 text-[11px] font-medium transition-colors sm:px-3.5",
                   active === tab.key
                     ? "bg-brand-600 text-white shadow-sm"
                     : "text-slate-500 hover:text-slate-700",
