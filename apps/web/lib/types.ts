@@ -116,6 +116,12 @@ export interface SchoolDetail {
   created_at: string;
 }
 
+export interface SchoolCodeSuggestion {
+  school_code: string;
+  adjusted: boolean;
+  note?: string | null;
+}
+
 export interface PortalUser {
   id: string;
   login_id: string;
@@ -149,6 +155,7 @@ export interface ImportRowResult {
   status: "created" | "skipped" | "failed" | string;
   username?: string | null;
   temporary_password?: string | null;
+  email_sent?: boolean | null;
   message?: string | null;
 }
 

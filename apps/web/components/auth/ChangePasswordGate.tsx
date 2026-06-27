@@ -11,17 +11,34 @@ import { useAppDispatch } from "@/store/hooks";
 import { setAccessToken, setUser } from "@/store/slices/authSlice";
 import {
   useChangePasswordMutation,
+  useChangePlatformPasswordMutation,
   useLazyGetMeQuery,
 } from "@/store/api/skulpulseApi";
 
-export function ChangePasswordGate({ userName }: { userName: string }) {
+type PortalKind = "tenant" | "platform";
+
+export function ChangePasswordGate({
+  userName,
+  portal = "tenant",
+}: {
+  userName: string;
+  portal?: PortalKind;
+}) {
   const dispatch = useAppDispatch();
-  const [changePassword, { isLoading }] = useChangePasswordMutation();
+  const [changeTenantPassword, { isLoading: tenantLoading }] = useChangePasswordMutation();
+  const [changePlatformPassword, { isLoading: platformLoading }] =
+    useChangePlatformPasswordMutation();
   const [fetchMe] = useLazyGetMeQuery();
   const [current, setCurrent] = useState("");
   const [next, setNext] = useState("");
   const [confirm, setConfirm] = useState("");
   const [error, setError] = useState<string | null>(null);
+
+  const isLoading = portal === "platform" ? platformLoading : tenantLoading;
+  const subtitle =
+    portal === "platform"
+      ? `Welcome, ${userName}. Choose a personal password before continuing to the platform console.`
+      : `Welcome, ${userName}. For your security, choose a personal password before continuing to your school portal.`;
 
   async function onSubmit(e: FormEvent) {
     e.preventDefault();
@@ -35,7 +52,9 @@ export function ChangePasswordGate({ userName }: { userName: string }) {
       return;
     }
     try {
-      const tokens = await changePassword({
+      const change =
+        portal === "platform" ? changePlatformPassword : changeTenantPassword;
+      const tokens = await change({
         current_password: current,
         new_password: next,
       }).unwrap();
@@ -64,10 +83,7 @@ export function ChangePasswordGate({ userName }: { userName: string }) {
           <h2 id="change-password-title" className="mt-1 font-display text-[1.35rem] font-medium">
             Set your new password
           </h2>
-          <p className="mt-2 text-[12px] leading-relaxed text-brand-100">
-            Welcome, {userName}. For your security, choose a personal password before
-            continuing to your school portal.
-          </p>
+          <p className="mt-2 text-[12px] leading-relaxed text-brand-100">{subtitle}</p>
         </div>
         <form onSubmit={onSubmit} className="space-y-4 px-6 py-5">
           {error && (

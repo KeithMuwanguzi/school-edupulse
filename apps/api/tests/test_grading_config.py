@@ -202,6 +202,7 @@ async def test_teacher_cannot_access_grading_config(client, admin_headers):
             "login_id": "0088",
             "name": "Grade Teacher",
             "role_key": "teacher",
+            "email": "grade@school.ug",
             "password": "TempPass!2025",
         },
         headers=headers,

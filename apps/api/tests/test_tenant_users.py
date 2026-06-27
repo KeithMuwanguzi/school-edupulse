@@ -72,6 +72,7 @@ async def test_create_user_auto_login_id(client, admin_headers):
         json={
             "name": "Auto ID Teacher",
             "role_key": "teacher",
+            "email": "auto@school.ug",
             "password": "TempPass!2025",
         },
         headers=headers,
@@ -103,12 +104,28 @@ async def test_create_parent_requires_login_id(client, admin_headers):
     assert resp.status_code == 422, resp.text
 
 
+async def test_create_staff_requires_email(client, admin_headers):
+    headers = await _headers(client, admin_headers, "USR3C")
+    resp = await client.post(
+        "/api/v1/tenant/users",
+        json={
+            "login_id": "0099",
+            "name": "No Email Teacher",
+            "role_key": "teacher",
+            "password": "TempPass!2025",
+        },
+        headers=headers,
+    )
+    assert resp.status_code == 422, resp.text
+
+
 async def test_duplicate_login_id(client, admin_headers):
     headers = await _headers(client, admin_headers, "USR4")
     payload = {
         "login_id": "0002",
         "name": "Another User",
         "role_key": "teacher",
+        "email": "another@school.ug",
         "password": "TempPass!2025",
     }
     assert (await client.post("/api/v1/tenant/users", json=payload, headers=headers)).status_code == 201
@@ -124,6 +141,7 @@ async def test_disable_user_and_password_reset(client, admin_headers):
             "login_id": "0003",
             "name": "Peter Okello",
             "role_key": "bursar",
+            "email": "peter@school.ug",
             "password": "TempPass!2025",
         },
         headers=headers,
@@ -225,6 +243,7 @@ async def test_create_user_with_allowed_modules_narrows_access(client, admin_hea
             "login_id": "0030",
             "name": "Finance Only",
             "role_key": "teacher",
+            "email": "finance@school.ug",
             "password": "TempPass!2025",
             "allowed_modules": ["students"],
         },
@@ -271,6 +290,7 @@ async def test_school_admin_ignores_allowed_modules(client, admin_headers):
             "login_id": "0031",
             "name": "Another Admin",
             "role_key": "school_admin",
+            "email": "admin2@school.ug",
             "password": "TempPass!2025",
             "allowed_modules": ["students"],
         },
@@ -298,6 +318,7 @@ async def test_update_allowed_modules(client, admin_headers):
             "login_id": "0032",
             "name": "Scoped Later",
             "role_key": "teacher",
+            "email": "scoped@school.ug",
             "password": "TempPass!2025",
         },
         headers=headers,
@@ -331,6 +352,7 @@ async def test_allowed_modules_rejects_unknown_key(client, admin_headers):
             "login_id": "0033",
             "name": "Bad Modules",
             "role_key": "teacher",
+            "email": "badmods@school.ug",
             "password": "TempPass!2025",
             "allowed_modules": ["not_a_real_module"],
         },
@@ -380,8 +402,8 @@ async def test_import_teachers_bulk(client, admin_headers):
         "/api/v1/tenant/users/import/teachers",
         json={
             "rows": [
-                {"login_id": "0011", "name": "Teacher One", "role_key": "teacher"},
-                {"login_id": "0012", "name": "Teacher Two", "role_key": "deputy_head"},
+                {"login_id": "0011", "name": "Teacher One", "email": "t1@example.com", "role_key": "teacher"},
+                {"login_id": "0012", "name": "Teacher Two", "email": "t2@example.com", "role_key": "deputy_head"},
             ],
             "generate_passwords": True,
         },
@@ -393,7 +415,7 @@ async def test_import_teachers_bulk(client, admin_headers):
     assert body["failed"] == 0
     created = [r for r in body["results"] if r["status"] == "created"]
     assert len(created) == 2
-    assert all(r["temporary_password"] for r in created)
+    assert all(r["temporary_password"] for r in created if not r.get("email_sent"))
 
     first = next(r for r in created if r["identifier"] == "0011")
     login = await client.post(
@@ -406,7 +428,7 @@ async def test_import_teachers_bulk(client, admin_headers):
 async def test_import_teachers_skips_duplicate(client, admin_headers):
     headers = await _headers(client, admin_headers, "IMP2")
     payload = {
-        "rows": [{"login_id": "0020", "name": "Dup Test", "role_key": "teacher"}],
+        "rows": [{"login_id": "0020", "name": "Dup Test", "email": "dup@example.com", "role_key": "teacher"}],
         "default_password": "SharedPass!99",
         "generate_passwords": False,
     }
@@ -538,6 +560,7 @@ async def test_password_reset_sets_must_change_flag(client, admin_headers):
             "login_id": "0002",
             "name": "Reset Target",
             "role_key": "teacher",
+            "email": "reset@school.ug",
             "password": "TempPass!2025",
         },
         headers=headers,

@@ -149,11 +149,26 @@ async def client():
 @pytest_asyncio.fixture
 async def admin_headers(client) -> dict:
     """Authorization header for the seeded platform admin."""
+    from sqlalchemy import update
+
+    from app.core.db import SessionLocal
+    from app.models.platform import PlatformAdmin
+
     resp = await client.post(
         "/api/v1/auth/platform/login",
         json={"email": "admin@skulpulse.ug", "password": "TestAdmin!2025"},
     )
     assert resp.status_code == 200, resp.text
+
+    # Tests exercise platform APIs after login; clear the first-login gate here.
+    async with SessionLocal() as session:
+        await session.execute(
+            update(PlatformAdmin)
+            .where(PlatformAdmin.email == "admin@skulpulse.ug")
+            .values(must_change_password=False)
+        )
+        await session.commit()
+
     return {"Authorization": f"Bearer {resp.json()['access_token']}"}
 
 

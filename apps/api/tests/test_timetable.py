@@ -39,6 +39,7 @@ async def _create_teacher(client, headers, onboard, login_id: str = "0002"):
             "login_id": login_id,
             "name": "Grace Namuli",
             "role_key": "teacher",
+            "email": f"{login_id}@test.school.ug",
             "password": "TempPass!2025",
         },
         headers=headers,

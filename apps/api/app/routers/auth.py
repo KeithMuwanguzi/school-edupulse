@@ -22,7 +22,7 @@ from app.schemas.auth import (
     TenantSummary,
     TokenResponse,
 )
-from app.services import auth_service, tenant_user_service
+from app.services import auth_service, platform_admin_service, tenant_user_service
 from app.services.audit_service import record_audit
 from app.services.subscription_service import (
     effective_module_keys,
@@ -179,6 +179,41 @@ async def tenant_change_password(
         tenant_id=principal.tenant_id,
         action="auth.password_changed",
         resource_type="tenant_user",
+        resource_id=principal.user_id,
+        ip_address=_client_ip(request),
+        user_agent=request.headers.get("user-agent"),
+    )
+    await session.commit()
+    return tokens
+
+
+@router.post("/platform/change-password", response_model=TokenResponse)
+async def platform_change_password(
+    body: ChangePasswordRequest,
+    request: Request,
+    principal: Principal = Depends(get_principal),
+    session: AsyncSession = Depends(get_session),
+) -> TokenResponse:
+    if principal.type != "platform_admin":
+        raise ForbiddenError("Platform administrator access required.")
+    await platform_admin_service.change_password(
+        session,
+        principal.user_id,
+        current_password=body.current_password,
+        new_password=body.new_password,
+    )
+    claims = await auth_service.build_claims(
+        session, UserType.platform_admin, principal.user_id
+    )
+    tokens = await auth_service.issue_tokens(
+        session, UserType.platform_admin, principal.user_id, claims
+    )
+    await record_audit(
+        session,
+        actor_type=ActorType.platform_admin,
+        actor_id=principal.user_id,
+        action="auth.password_changed",
+        resource_type="platform_admin",
         resource_id=principal.user_id,
         ip_address=_client_ip(request),
         user_agent=request.headers.get("user-agent"),

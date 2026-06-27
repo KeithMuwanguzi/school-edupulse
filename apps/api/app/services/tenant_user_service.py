@@ -12,6 +12,7 @@ from app.core.errors import ConflictError, ForbiddenError, NotFoundError, Valida
 from app.core.security import hash_password
 from app.models.enums import UserStatus, UserType
 from app.models.platform import Tenant
+from app.models.school import School
 from app.models.user import RefreshToken, Role, TenantUser
 from app.schemas.tenant_user import (
     PasswordResetResponse,
@@ -139,11 +140,15 @@ async def create_user(
         await subscription_service.validate_module_keys(session, body.allowed_modules)
         allowed_modules = body.allowed_modules
 
+    email = str(body.email) if body.email else None
+    if body.role_key != "parent" and not email:
+        raise ValidationError("Email is required for staff accounts.")
+
     user = TenantUser(
         tenant_id=tenant_id,
         role_id=role.id,
         login_id=login_id,
-        email=str(body.email) if body.email else None,
+        email=email,
         password_hash=hash_password(body.password),
         name=body.name.strip(),
         status=UserStatus.active,
@@ -152,6 +157,22 @@ async def create_user(
     )
     session.add(user)
     await session.flush()
+
+    if body.role_key != "parent" and email:
+        school_name = await session.scalar(
+            select(School.name).where(School.tenant_id == tenant_id)
+        )
+        await email_service.send_portal_credentials(
+            to=email,
+            school_name=school_name or school_code,
+            username=f"{login_id}@{school_code}",
+            password=body.password,
+            intro=(
+                f"Your SkulPulse portal account for {school_name or school_code} is ready. "
+                "Sign in with the credentials below, then choose a new password."
+            ),
+        )
+
     return _out(user, role.role_key, school_code)
 
 

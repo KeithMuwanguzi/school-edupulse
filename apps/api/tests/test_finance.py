@@ -197,6 +197,7 @@ async def test_bursar_can_record_payments(client, admin_headers):
             "login_id": "0004",
             "name": "Finance Officer",
             "role_key": "bursar",
+            "email": "bursar@school.ug",
             "password": "TempPass!2025",
         },
         headers=headers,

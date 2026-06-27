@@ -138,3 +138,30 @@ async def test_onboard_requires_email(client, admin_headers):
     del payload["email"]
     resp = await client.post("/api/v1/platform/schools", json=payload, headers=admin_headers)
     assert resp.status_code == 422
+
+
+async def test_suggest_school_code(client, admin_headers):
+    resp = await client.get(
+        "/api/v1/platform/schools/suggest-code",
+        params={"name": "Gayaza Primary School"},
+        headers=admin_headers,
+    )
+    assert resp.status_code == 200, resp.text
+    body = resp.json()
+    assert len(body["school_code"]) >= 4
+    assert body["school_code"].isupper()
+
+    await client.post(
+        "/api/v1/platform/schools",
+        json=sample_onboard_payload(body["school_code"]),
+        headers=admin_headers,
+    )
+
+    collision = await client.get(
+        "/api/v1/platform/schools/suggest-code",
+        params={"name": "Galama Primary School"},
+        headers=admin_headers,
+    )
+    assert collision.status_code == 200
+    assert collision.json()["school_code"] != body["school_code"]
+

@@ -89,6 +89,7 @@ async def seed_platform_admin(session) -> None:
             password_hash=hash_password(settings.platform_admin_password),
             name="Platform Administrator",
             is_active=True,
+            must_change_password=True,
         )
     )
     log.info("seed.platform_admin.created", email=settings.platform_admin_email)

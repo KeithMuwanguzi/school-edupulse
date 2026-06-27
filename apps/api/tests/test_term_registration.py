@@ -160,6 +160,7 @@ async def test_teacher_can_update_responses(client, admin_headers):
             "login_id": "0099",
             "name": "Desk Teacher",
             "role_key": "teacher",
+            "email": "desk@school.ug",
             "password": "TempPass!2025",
         },
         headers=headers,

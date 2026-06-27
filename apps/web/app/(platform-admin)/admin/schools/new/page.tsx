@@ -19,6 +19,7 @@ import {
   useEstimateMutation,
   useModuleCatalogQuery,
   useOnboardSchoolMutation,
+  useSuggestSchoolCodeQuery,
   useUploadPlatformSchoolBadgeMutation,
 } from "@/store/api/skulpulseApi";
 
@@ -60,6 +61,33 @@ export default function OnboardSchoolPage() {
     admin_password: "",
   });
 
+  const [debouncedName, setDebouncedName] = useState("");
+  useEffect(() => {
+    const trimmed = form.name.trim();
+    const timer = window.setTimeout(() => setDebouncedName(trimmed), 400);
+    return () => window.clearTimeout(timer);
+  }, [form.name]);
+
+  const { data: codeSuggestion, isFetching: codeLoading } = useSuggestSchoolCodeQuery(
+    { name: debouncedName },
+    { skip: debouncedName.length < 2 },
+  );
+
+  useEffect(() => {
+    if (codeSuggestion?.school_code) {
+      setForm((f) => ({ ...f, school_code: codeSuggestion.school_code }));
+    }
+  }, [codeSuggestion?.school_code]);
+
+  const codeHint = useMemo(() => {
+    if (debouncedName.length < 2) {
+      return "Enter the school name — a unique login code is generated automatically.";
+    }
+    if (codeLoading) return "Generating code…";
+    if (codeSuggestion?.note) return codeSuggestion.note;
+    return "Auto-generated from the school name — used in portal logins (e.g. 0001@CODE).";
+  }, [codeLoading, codeSuggestion?.note, debouncedName.length]);
+
   useEffect(() => {
     estimate({ module_keys: ["core"] })
       .unwrap()
@@ -80,11 +108,12 @@ export default function OnboardSchoolPage() {
     return (
       form.name.trim().length >= 2 &&
       /^[A-Z0-9]{4,8}$/.test(form.school_code.trim()) &&
+      !codeLoading &&
       form.email.trim().length > 0 &&
       form.admin_name.trim().length >= 2 &&
       form.admin_password.length >= 8
     );
-  }, [form]);
+  }, [form, codeLoading]);
 
   async function onSubmit(e: FormEvent) {
     e.preventDefault();
@@ -147,15 +176,14 @@ export default function OnboardSchoolPage() {
               </FormField>
               <FormField
                 label="School code"
-                hint="4–8 uppercase letters/digits — used for login"
+                hint={codeHint}
                 required
                 error={fieldErrors["school_code"]}
               >
                 <Input
                   value={form.school_code}
-                  onChange={(e) => setForm((f) => ({ ...f, school_code: e.target.value.toUpperCase() }))}
-                  maxLength={8}
-                  required
+                  readOnly
+                  className="bg-slate-50 uppercase tracking-wide"
                   invalid={!!fieldErrors["school_code"]}
                 />
               </FormField>

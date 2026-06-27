@@ -41,8 +41,8 @@ export function UserAddPanel({ schoolCode }: UserAddPanelProps) {
   const canSubmit = useMemo(() => {
     if (!name.trim() || password.length < 8) return false;
     if (isParent) return parentLoginId.trim().length >= 2;
-    return true;
-  }, [isParent, name, parentLoginId, password]);
+    return email.trim().length > 0;
+  }, [isParent, name, parentLoginId, password, email]);
 
   async function submit() {
     try {
@@ -55,7 +55,12 @@ export function UserAddPanel({ schoolCode }: UserAddPanelProps) {
         ...(isParent ? { login_id: parentLoginId.trim() } : {}),
       };
       const created = await createUser(payload).unwrap();
-      toast(`Account ${created.username} created.`, "success");
+      toast(
+        isParent
+          ? `Account ${created.username} created.`
+          : `Account ${created.username} created. Sign-in details were emailed to ${email.trim()}.`,
+        "success",
+      );
       setParentLoginId("");
       setName("");
       setEmail("");
@@ -123,12 +128,13 @@ export function UserAddPanel({ schoolCode }: UserAddPanelProps) {
             className={compactControl}
           />
         </FormField>
-        <FormField label="Email">
+        <FormField label="Email" required={!isParent}>
           <Input
             type="email"
             value={email}
             onChange={(e) => setEmail(e.target.value)}
-            placeholder="Optional"
+            placeholder={isParent ? "Optional" : "Required for credentials email"}
+            required={!isParent}
             className={compactControl}
           />
         </FormField>

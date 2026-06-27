@@ -19,6 +19,7 @@ from app.schemas.school import (
     OnboardRequest,
     OnboardResponse,
     PortalUser,
+    SchoolCodeSuggestion,
     SchoolDetail,
     SchoolListItem,
     SchoolProfile,
@@ -31,6 +32,7 @@ from app.services import (
     idempotency_service,
     onboarding_service,
     school_badge_service,
+    school_code_service,
     subscription_service,
     tenant_user_service,
 )
@@ -109,6 +111,15 @@ async def list_schools(
         next_cursor=next_cursor,
         has_more=next_cursor is not None,
     )
+
+
+@router.get("/suggest-code", response_model=SchoolCodeSuggestion)
+async def suggest_school_code(
+    name: str = Query(min_length=2, max_length=255),
+    session: AsyncSession = Depends(get_platform_session),
+) -> SchoolCodeSuggestion:
+    code, adjusted, note = await school_code_service.suggest_school_code(session, name)
+    return SchoolCodeSuggestion(school_code=code, adjusted=adjusted, note=note)
 
 
 @router.post("", status_code=201)

@@ -70,6 +70,8 @@ async def get_principal(
 async def require_platform_admin(principal: Principal = Depends(get_principal)) -> Principal:
     if principal.type != "platform_admin":
         raise ForbiddenError("Platform administrator access required.")
+    if principal.must_change_password:
+        raise PasswordChangeRequiredError()
     return principal
 
 

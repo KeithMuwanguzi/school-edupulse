@@ -5,7 +5,7 @@ import datetime as dt
 import re
 from uuid import UUID
 
-from pydantic import BaseModel, EmailStr, Field, field_validator
+from pydantic import BaseModel, EmailStr, Field, field_validator, model_validator
 
 from app.models.enums import UserStatus
 
@@ -68,6 +68,12 @@ class TenantUserCreate(BaseModel):
     def _normalize_modules(cls, v: list[str] | None) -> list[str] | None:
         return _clean_modules(v)
 
+    @model_validator(mode="after")
+    def _staff_requires_email(self) -> TenantUserCreate:
+        if self.role_key != "parent" and not self.email:
+            raise ValueError("Email is required for staff accounts — credentials are emailed there.")
+        return self
+
 
 class NextLoginIdOut(BaseModel):
     login_id: str
@@ -101,7 +107,7 @@ PasswordResetStubResponse = PasswordResetResponse
 class TeacherImportRow(BaseModel):
     login_id: str = Field(min_length=2, max_length=20)
     name: str = Field(min_length=2, max_length=255)
-    email: EmailStr | None = None
+    email: EmailStr
     role_key: str = Field(default="teacher", max_length=50)
 
 
@@ -131,6 +137,7 @@ class ImportRowResult(BaseModel):
     status: str
     username: str | None = None
     temporary_password: str | None = None
+    email_sent: bool | None = None
     message: str | None = None
 
 

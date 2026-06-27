@@ -9,6 +9,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.security import hash_password
 from app.models.enums import UserStatus
+from app.models.school import School
 from app.models.student import Student
 from app.models.user import Role, TenantUser
 from app.schemas.tenant_user import (
@@ -17,6 +18,7 @@ from app.schemas.tenant_user import (
     ImportUsersResponse,
     TeacherImportRow,
 )
+from app.services import email_service
 from app.services.tenant_user_service import (
     _resolve_role,
     _school_code,
@@ -36,6 +38,32 @@ async def _login_taken(session: AsyncSession, tenant_id: UUID, login_id: str) ->
         )
     )
     return existing is not None
+
+
+async def _school_name(session: AsyncSession, tenant_id: UUID) -> str:
+    code = await _school_code(session, tenant_id)
+    name = await session.scalar(select(School.name).where(School.tenant_id == tenant_id))
+    return name or code
+
+
+async def _send_staff_credentials(
+    *,
+    to: str,
+    school_name: str,
+    username: str,
+    password: str,
+    name: str,
+) -> bool:
+    return await email_service.send_portal_credentials(
+        to=to,
+        school_name=school_name,
+        username=username,
+        password=password,
+        intro=(
+            f"Your SkulPulse portal account for {school_name} is ready. "
+            f"Hello {name}, sign in with the credentials below, then choose a new password."
+        ),
+    )
 
 
 async def _get_student(
@@ -71,6 +99,7 @@ async def import_teachers(
     generate_passwords: bool,
 ) -> ImportUsersResponse:
     school_code = await _school_code(session, tenant_id)
+    school_name = await _school_name(session, tenant_id)
     results: list[ImportRowResult] = []
     created = skipped = failed = 0
 
@@ -83,6 +112,8 @@ async def import_teachers(
         try:
             if not login_id or not name:
                 raise ValueError("login_id and name are required")
+            if not row.email:
+                raise ValueError("email is required — credentials are sent there")
             if role_key not in STAFF_IMPORT_ROLES:
                 raise ValueError(f"role_key must be one of: {', '.join(sorted(STAFF_IMPORT_ROLES))}")
             if await _login_taken(session, tenant_id, login_id):
@@ -107,7 +138,7 @@ async def import_teachers(
                 tenant_id=tenant_id,
                 role_id=role.id,
                 login_id=login_id,
-                email=str(row.email) if row.email else None,
+                email=str(row.email),
                 password_hash=hash_password(password),
                 name=name,
                 status=UserStatus.active,
@@ -115,14 +146,28 @@ async def import_teachers(
             )
             session.add(user)
             await session.flush()
+            username = f"{login_id}@{school_code}"
+            email_sent = await _send_staff_credentials(
+                to=str(row.email),
+                school_name=school_name,
+                username=username,
+                password=password,
+                name=name,
+            )
             created += 1
             results.append(
                 ImportRowResult(
                     line=i,
                     identifier=ident,
                     status="created",
-                    username=f"{login_id}@{school_code}",
-                    temporary_password=password if generate_passwords or default_password else None,
+                    username=username,
+                    temporary_password=None if email_sent else password,
+                    email_sent=email_sent,
+                    message=(
+                        "Credentials emailed."
+                        if email_sent
+                        else "Email not sent — share the password manually (SMTP disabled or failed)."
+                    ),
                 )
             )
         except Exception as exc:

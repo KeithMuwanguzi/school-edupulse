@@ -18,7 +18,7 @@ const compactControl = "h-7 text-[12px]";
 
 const TEACHER_TEMPLATE = `login_id,name,email,role_key
 0004,Jane Nakato,jane@school.ug,teacher
-0005,John Okello,,teacher`;
+0005,John Okello,john@school.ug,teacher`;
 
 const GUARDIAN_TEMPLATE = `student_number,guardian_name,email,student_first_name,student_last_name
 2203992,Mary Namuli,mary@email.com,Kato,Okello
@@ -31,7 +31,7 @@ function parseTeacherRows(text: string) {
   return rows.slice(start).map((cells) => ({
     login_id: cells[0] ?? "",
     name: cells[1] ?? "",
-    email: cells[2] || undefined,
+    email: cells[2] ?? "",
     role_key: cells[3] || "teacher",
   }));
 }
@@ -115,9 +115,9 @@ export function ImportTeachersPanel({ schoolCode }: ImportPanelProps) {
   const [importTeachers, { isLoading }] = useImportTeachersMutation();
 
   async function runImport() {
-    const rows = parseTeacherRows(csv).filter((r) => r.login_id && r.name);
+    const rows = parseTeacherRows(csv).filter((r) => r.login_id && r.name && r.email);
     if (!rows.length) {
-      toast("Add at least one row with login_id and name.", "error");
+      toast("Each row needs login_id, name, and email.", "error");
       return;
     }
     try {
@@ -145,7 +145,7 @@ export function ImportTeachersPanel({ schoolCode }: ImportPanelProps) {
         generatePasswords={generatePasswords}
         setGeneratePasswords={setGeneratePasswords}
       />
-      <FormField label="CSV" hint={`login_id@${schoolCode}`}>
+      <FormField label="CSV" hint={`login_id, name, email required · @${schoolCode}`}>
         <textarea
           value={csv}
           onChange={(e) => setCsv(e.target.value)}

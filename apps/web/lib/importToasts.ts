@@ -90,7 +90,7 @@ export function toastStaffImport(toast: ToastFn, res: ImportUsersResponse): void
     toast(`${res.created} account(s) created. ${res.skipped} duplicate(s) skipped.`, "success");
     return;
   }
-  toast(`${res.created} staff account(s) created. Copy any generated passwords now.`, "success");
+  toast(`${res.created} staff account(s) created. Credentials are emailed when SMTP is enabled.`, "success");
 }
 
 export function toastGuardianImport(toast: ToastFn, res: ImportUsersResponse): void {

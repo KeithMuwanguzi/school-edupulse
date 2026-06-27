@@ -217,6 +217,35 @@ async def delete_admin(
     await session.flush()
 
 
+async def change_password(
+    session: AsyncSession,
+    admin_id: UUID,
+    *,
+    current_password: str,
+    new_password: str,
+) -> None:
+    from app.core.security import verify_password
+
+    admin = await session.scalar(
+        select(PlatformAdmin).where(
+            PlatformAdmin.id == admin_id,
+            PlatformAdmin.deleted_at.is_(None),
+        )
+    )
+    if admin is None or not admin.is_active:
+        raise NotFoundError("Platform administrator not found.")
+    if not verify_password(current_password, admin.password_hash):
+        raise ValidationError("Current password is incorrect.")
+    if len(new_password) < 8:
+        raise ValidationError("New password must be at least 8 characters.")
+    if verify_password(new_password, admin.password_hash):
+        raise ValidationError("New password must be different from the current password.")
+
+    admin.password_hash = hash_password(new_password)
+    admin.must_change_password = False
+    await _revoke_tokens(session, admin.id)
+
+
 async def reset_admin_password(
     session: AsyncSession,
     admin_id: UUID,

@@ -84,3 +84,91 @@ async def test_rate_limit_helper_trips():
         await hit("test:key", limit=5, window_seconds=60)
     with pytest.raises(RateLimitError):
         await hit("test:key", limit=5, window_seconds=60)
+
+
+async def test_platform_login_sets_must_change_password(client, db):
+    from sqlalchemy import update
+
+    from app.models.platform import PlatformAdmin
+
+    await db.execute(
+        update(PlatformAdmin)
+        .where(PlatformAdmin.email == ADMIN_EMAIL)
+        .values(must_change_password=True)
+    )
+    await db.commit()
+
+    tokens = await _login(client)
+    me = await client.get(
+        "/api/v1/auth/me",
+        headers={"Authorization": f"Bearer {tokens['access_token']}"},
+    )
+    assert me.status_code == 200
+    assert me.json()["must_change_password"] is True
+
+
+async def test_platform_api_blocked_until_password_changed(client, db):
+    from sqlalchemy import update
+
+    from app.models.platform import PlatformAdmin
+
+    await db.execute(
+        update(PlatformAdmin)
+        .where(PlatformAdmin.email == ADMIN_EMAIL)
+        .values(must_change_password=True)
+    )
+    await db.commit()
+
+    tokens = await _login(client)
+    headers = {"Authorization": f"Bearer {tokens['access_token']}"}
+
+    blocked = await client.get("/api/v1/platform/schools", headers=headers)
+    assert blocked.status_code == 403
+    assert blocked.json()["code"] == "PASSWORD_CHANGE_REQUIRED"
+
+    me = await client.get("/api/v1/auth/me", headers=headers)
+    assert me.status_code == 200
+
+
+async def test_platform_change_password_clears_gate(client, db):
+    from sqlalchemy import update
+
+    from app.models.platform import PlatformAdmin
+
+    await db.execute(
+        update(PlatformAdmin)
+        .where(PlatformAdmin.email == ADMIN_EMAIL)
+        .values(must_change_password=True)
+    )
+    await db.commit()
+
+    tokens = await _login(client)
+    headers = {"Authorization": f"Bearer {tokens['access_token']}"}
+
+    change = await client.post(
+        "/api/v1/auth/platform/change-password",
+        json={"current_password": ADMIN_PASSWORD, "new_password": "NewAdmin!2026"},
+        headers=headers,
+    )
+    assert change.status_code == 200, change.text
+    new_headers = {"Authorization": f"Bearer {change.json()['access_token']}"}
+
+    me = await client.get("/api/v1/auth/me", headers=new_headers)
+    assert me.status_code == 200
+    assert me.json()["must_change_password"] is False
+
+    schools = await client.get("/api/v1/platform/schools", headers=new_headers)
+    assert schools.status_code == 200, schools.text
+
+    # Restore seed password for other tests in the same session.
+    from app.core.security import hash_password
+
+    await db.execute(
+        update(PlatformAdmin)
+        .where(PlatformAdmin.email == ADMIN_EMAIL)
+        .values(
+            must_change_password=False,
+            password_hash=hash_password(ADMIN_PASSWORD),
+        )
+    )
+    await db.commit()

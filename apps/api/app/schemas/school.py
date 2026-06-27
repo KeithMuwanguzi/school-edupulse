@@ -74,6 +74,12 @@ class OnboardRequest(BaseModel):
         return str(v).strip().lower()
 
 
+class SchoolCodeSuggestion(BaseModel):
+    school_code: str
+    adjusted: bool = False
+    note: str | None = None
+
+
 class AcademicYearOut(BaseModel):
     id: UUID
     label: str

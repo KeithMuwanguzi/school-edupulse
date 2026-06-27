@@ -23,6 +23,7 @@ import type {
   PortalUser,
   RequestLogItem,
   SchoolDetail,
+  SchoolCodeSuggestion,
   SchoolListItem,
   SubjectOut,
   ClassOut,
@@ -181,6 +182,13 @@ export const skulpulseApi = createApi({
       query: (body) => ({ url: "/auth/tenant/change-password", method: "POST", body }),
       invalidatesTags: ["Me"],
     }),
+    changePlatformPassword: builder.mutation<
+      TokenResponse,
+      { current_password: string; new_password: string }
+    >({
+      query: (body) => ({ url: "/auth/platform/change-password", method: "POST", body }),
+      invalidatesTags: ["Me"],
+    }),
 
     // --- Platform: schools ---
     listSchools: builder.query<
@@ -196,6 +204,12 @@ export const skulpulseApi = createApi({
         return `/platform/schools${qs ? `?${qs}` : ""}`;
       },
       providesTags: ["Schools"],
+    }),
+    suggestSchoolCode: builder.query<SchoolCodeSuggestion, { name: string }>({
+      query: ({ name }) => {
+        const p = new URLSearchParams({ name });
+        return `/platform/schools/suggest-code?${p.toString()}`;
+      },
     }),
     onboardSchool: builder.mutation<Record<string, unknown>, Record<string, unknown>>({
       query: (body) => ({
@@ -1805,7 +1819,9 @@ export const {
   useGetMeQuery,
   useLazyGetMeQuery,
   useChangePasswordMutation,
+  useChangePlatformPasswordMutation,
   useListSchoolsQuery,
+  useSuggestSchoolCodeQuery,
   useOnboardSchoolMutation,
   useGetSchoolQuery,
   useUpdateSchoolMutation,
