@@ -30,6 +30,14 @@ export const FINANCE_SECTIONS = [
   { key: "structures", label: "Fee structures", href: "/app/m/finance/structures", icon: "list", exact: false },
 ];
 
+export const HR_PAYROLL_SECTIONS = [
+  { key: "overview", label: "Overview", href: "/app/m/hr_payroll", icon: "chart", exact: true },
+  { key: "employees", label: "Employees", href: "/app/m/hr_payroll/employees", icon: "users", exact: false },
+  { key: "leave", label: "Leave", href: "/app/m/hr_payroll/leave", icon: "calendar", exact: false },
+  { key: "payroll", label: "Payroll", href: "/app/m/hr_payroll/payroll", icon: "wallet", exact: false },
+  { key: "me", label: "My HR", href: "/app/m/hr_payroll/me", icon: "user", exact: false },
+];
+
 export const ASSESSMENT_SECTIONS = [
   { key: "marks", label: "Marks & CA", href: "/app/m/assessment", icon: "clipboard", exact: true },
   { key: "ple", label: "P7 PLE candidacy", href: "/app/m/assessment/ple", icon: "graduation", exact: false },
@@ -68,6 +76,19 @@ function moduleNavItem(key: string): NavItem {
       href: "/app/m/finance",
       icon: moduleIcon(key),
       children: FINANCE_SECTIONS.map((s) => ({
+        label: s.label,
+        href: s.href,
+        icon: s.icon,
+        exact: s.exact,
+      })),
+    };
+  }
+  if (key === "hr_payroll") {
+    return {
+      label: moduleLabel(key),
+      href: "/app/m/hr_payroll",
+      icon: moduleIcon(key),
+      children: HR_PAYROLL_SECTIONS.map((s) => ({
         label: s.label,
         href: s.href,
         icon: s.icon,

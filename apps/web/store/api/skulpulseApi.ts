@@ -17,6 +17,12 @@ import type {
   AcademicYearWithTerms,
   TermCalendarEventOut,
   CircularOut,
+  HrPayrollSummaryOut,
+  EmployeeOut,
+  LeaveTypeOut,
+  LeaveRequestOut,
+  PayrollRunOut,
+  PayslipOut,
   CursorPage,
   ErrorLogItem,
   InvoiceBreakdown,
@@ -161,7 +167,7 @@ function idempotent(): FetchArgs["headers"] {
 export const skulpulseApi = createApi({
   reducerPath: "skulpulseApi",
   baseQuery: baseQueryWithReauth,
-  tagTypes: ["Schools", "School", "Me", "TenantSchool", "TenantModules", "AcademicCalendar", "TermCalendar", "Circulars", "Subjects", "Classes", "TenantUsers", "Students", "Teachers", "Attendance", "Timetable", "TermRegistration", "Grading", "Admissions", "ReportCards", "Finance", "Assessment", "Ple", "Hostel", "PlatformAdmins"],
+  tagTypes: ["Schools", "School", "Me", "TenantSchool", "TenantModules", "AcademicCalendar", "TermCalendar", "Circulars", "HrPayroll", "Subjects", "Classes", "TenantUsers", "Students", "Teachers", "Attendance", "Timetable", "TermRegistration", "Grading", "Admissions", "ReportCards", "Finance", "Assessment", "Ple", "Hostel", "PlatformAdmins"],
   endpoints: (builder) => ({
     // --- Auth ---
     platformLogin: builder.mutation<TokenResponse, { email: string; password: string }>({
@@ -620,6 +626,97 @@ export const skulpulseApi = createApi({
         method: "DELETE",
       }),
       invalidatesTags: ["Circulars"],
+    }),
+
+    hrPayrollSummary: builder.query<HrPayrollSummaryOut, void>({
+      query: () => "/tenant/hr-payroll/summary",
+      providesTags: ["HrPayroll"],
+    }),
+    listHrEmployees: builder.query<EmployeeOut[], void>({
+      query: () => "/tenant/hr-payroll/employees",
+      providesTags: ["HrPayroll"],
+    }),
+    upsertEmployeeProfile: builder.mutation<
+      EmployeeOut,
+      { userId: string; body: Record<string, unknown> }
+    >({
+      query: ({ userId, body }) => ({
+        url: `/tenant/hr-payroll/employees/${userId}/profile`,
+        method: "PUT",
+        body,
+      }),
+      invalidatesTags: ["HrPayroll"],
+    }),
+    listLeaveTypes: builder.query<LeaveTypeOut[], void>({
+      query: () => "/tenant/hr-payroll/leave-types",
+      providesTags: ["HrPayroll"],
+    }),
+    listLeaveRequests: builder.query<LeaveRequestOut[], { status?: string } | void>({
+      query: (args) => {
+        const status = args && "status" in args && args.status ? `?status=${args.status}` : "";
+        return `/tenant/hr-payroll/leave-requests${status}`;
+      },
+      providesTags: ["HrPayroll"],
+    }),
+    listMyLeaveRequests: builder.query<LeaveRequestOut[], void>({
+      query: () => "/tenant/hr-payroll/me/leave",
+      providesTags: ["HrPayroll"],
+    }),
+    requestLeave: builder.mutation<
+      LeaveRequestOut,
+      { leave_type_id: string; starts_on: string; ends_on: string; reason?: string }
+    >({
+      query: (body) => ({ url: "/tenant/hr-payroll/me/leave", method: "POST", body }),
+      invalidatesTags: ["HrPayroll"],
+    }),
+    approveLeave: builder.mutation<LeaveRequestOut, { requestId: string; review_note?: string }>({
+      query: ({ requestId, review_note }) => ({
+        url: `/tenant/hr-payroll/leave-requests/${requestId}/approve`,
+        method: "POST",
+        body: { review_note: review_note ?? null },
+      }),
+      invalidatesTags: ["HrPayroll"],
+    }),
+    rejectLeave: builder.mutation<LeaveRequestOut, { requestId: string; review_note?: string }>({
+      query: ({ requestId, review_note }) => ({
+        url: `/tenant/hr-payroll/leave-requests/${requestId}/reject`,
+        method: "POST",
+        body: { review_note: review_note ?? null },
+      }),
+      invalidatesTags: ["HrPayroll"],
+    }),
+    listPayrollRuns: builder.query<PayrollRunOut[], void>({
+      query: () => "/tenant/hr-payroll/payroll-runs",
+      providesTags: ["HrPayroll"],
+    }),
+    getPayrollRun: builder.query<PayrollRunOut, string>({
+      query: (runId) => `/tenant/hr-payroll/payroll-runs/${runId}`,
+      providesTags: (_r, _e, id) => [{ type: "HrPayroll", id }],
+    }),
+    createPayrollRun: builder.mutation<
+      PayrollRunOut,
+      { year: number; month: number; notes?: string }
+    >({
+      query: (body) => ({ url: "/tenant/hr-payroll/payroll-runs", method: "POST", body }),
+      invalidatesTags: ["HrPayroll"],
+    }),
+    computePayrollRun: builder.mutation<PayrollRunOut, string>({
+      query: (runId) => ({
+        url: `/tenant/hr-payroll/payroll-runs/${runId}/compute`,
+        method: "POST",
+      }),
+      invalidatesTags: ["HrPayroll"],
+    }),
+    finalizePayrollRun: builder.mutation<PayrollRunOut, string>({
+      query: (runId) => ({
+        url: `/tenant/hr-payroll/payroll-runs/${runId}/finalize`,
+        method: "POST",
+      }),
+      invalidatesTags: ["HrPayroll"],
+    }),
+    listMyPayslips: builder.query<PayslipOut[], void>({
+      query: () => "/tenant/hr-payroll/me/payslips",
+      providesTags: ["HrPayroll"],
     }),
 
     listSubjects: builder.query<SubjectOut[], void>({
@@ -2004,6 +2101,21 @@ export const {
   useDeleteCircularMutation,
   useUploadCircularAttachmentMutation,
   useDeleteCircularAttachmentMutation,
+  useHrPayrollSummaryQuery,
+  useListHrEmployeesQuery,
+  useUpsertEmployeeProfileMutation,
+  useListLeaveTypesQuery,
+  useListLeaveRequestsQuery,
+  useListMyLeaveRequestsQuery,
+  useRequestLeaveMutation,
+  useApproveLeaveMutation,
+  useRejectLeaveMutation,
+  useListPayrollRunsQuery,
+  useGetPayrollRunQuery,
+  useCreatePayrollRunMutation,
+  useComputePayrollRunMutation,
+  useFinalizePayrollRunMutation,
+  useListMyPayslipsQuery,
   useListSubjectsQuery,
   useCreateSubjectMutation,
   useUpdateSubjectMutation,

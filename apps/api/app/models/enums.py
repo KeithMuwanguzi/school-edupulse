@@ -87,6 +87,37 @@ class CircularPriority(str, enum.Enum):
     important = "important"
 
 
+class EmploymentType(str, enum.Enum):
+    permanent = "permanent"
+    contract = "contract"
+    casual = "casual"
+
+
+class EmployeeDepartment(str, enum.Enum):
+    teaching = "teaching"
+    administration = "administration"
+    support = "support"
+    leadership = "leadership"
+
+
+class PaymentMethod(str, enum.Enum):
+    bank = "bank"
+    mobile_money = "mobile_money"
+    cash = "cash"
+
+
+class LeaveRequestStatus(str, enum.Enum):
+    pending = "pending"
+    approved = "approved"
+    rejected = "rejected"
+    cancelled = "cancelled"
+
+
+class PayrollRunStatus(str, enum.Enum):
+    draft = "draft"
+    finalized = "finalized"
+
+
 class NcdcCycle(str, enum.Enum):
     """NCDC curriculum cycle — ECD nursery and primary (§2.3)."""
     ecd = "ecd"  # Baby, Middle, Top — early childhood
@@ -143,6 +174,11 @@ PG_ENUM_NAMES = {
     CircularStatus: "circular_status",
     CircularAudience: "circular_audience",
     CircularPriority: "circular_priority",
+    EmploymentType: "employment_type",
+    EmployeeDepartment: "employee_department",
+    PaymentMethod: "payment_method",
+    LeaveRequestStatus: "leave_request_status",
+    PayrollRunStatus: "payroll_run_status",
     NcdcCycle: "ncdc_cycle",
     ClassLevel: "class_level",
     AttendanceStatus: "attendance_status",

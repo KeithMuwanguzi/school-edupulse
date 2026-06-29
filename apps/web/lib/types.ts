@@ -327,6 +327,119 @@ export interface CircularOut {
   updated_at: string;
 }
 
+export interface HrPayrollSummaryOut {
+  active_employees: number;
+  pending_leave: number;
+  on_leave_today: number;
+  latest_payroll_label: string | null;
+  latest_payroll_net_ugx: number | null;
+  monthly_payroll_ugx: number;
+}
+
+export interface EmployeeOut {
+  user_id: string;
+  login_id: string;
+  name: string;
+  email?: string | null;
+  role_key: string;
+  role_label: string;
+  status: string;
+  has_profile: boolean;
+  job_title?: string | null;
+  department?: string | null;
+  employment_type?: string | null;
+  hire_date?: string | null;
+  tin?: string | null;
+  nssf_number?: string | null;
+  payment_method?: string | null;
+  bank_name?: string | null;
+  bank_account?: string | null;
+  mobile_money_number?: string | null;
+  base_salary_ugx?: number | null;
+  housing_allowance_ugx?: number | null;
+  transport_allowance_ugx?: number | null;
+  responsibility_allowance_ugx?: number | null;
+  other_allowances_ugx?: number | null;
+  recurring_deduction_ugx?: number | null;
+  recurring_deduction_note?: string | null;
+  annual_leave_days?: number | null;
+  is_active?: boolean | null;
+  gross_salary_ugx?: number | null;
+}
+
+export interface LeaveTypeOut {
+  id: string;
+  code: string;
+  label: string;
+  default_days: number | null;
+  is_paid: boolean;
+  is_active: boolean;
+}
+
+export interface LeaveRequestOut {
+  id: string;
+  user_id: string;
+  employee_name: string;
+  login_id: string;
+  leave_type_id: string;
+  leave_type_label: string;
+  starts_on: string;
+  ends_on: string;
+  days: number;
+  reason?: string | null;
+  status: string;
+  reviewed_by?: string | null;
+  reviewer_name?: string | null;
+  reviewed_at?: string | null;
+  review_note?: string | null;
+  created_at: string;
+}
+
+export interface PayrollLineOut {
+  id: string;
+  user_id: string;
+  employee_name: string;
+  login_id: string;
+  job_title?: string | null;
+  base_salary_ugx: number;
+  housing_allowance_ugx: number;
+  transport_allowance_ugx: number;
+  responsibility_allowance_ugx: number;
+  other_allowances_ugx: number;
+  gross_ugx: number;
+  nssf_employee_ugx: number;
+  nssf_employer_ugx: number;
+  paye_ugx: number;
+  other_deductions_ugx: number;
+  net_ugx: number;
+  payment_method?: string | null;
+}
+
+export interface PayrollRunOut {
+  id: string;
+  year: number;
+  month: number;
+  label: string;
+  status: string;
+  notes?: string | null;
+  total_gross_ugx: number;
+  total_deductions_ugx: number;
+  total_net_ugx: number;
+  staff_count: number;
+  finalized_at?: string | null;
+  lines?: PayrollLineOut[];
+}
+
+export interface PayslipOut {
+  run_id: string;
+  label: string;
+  year: number;
+  month: number;
+  status: string;
+  finalized_at?: string | null;
+  line: PayrollLineOut;
+}
+
 export type NcdcCycle = "ecd" | "cycle_1" | "cycle_2" | "cycle_3";
 
 export interface SubjectOut {
