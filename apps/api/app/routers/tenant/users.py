@@ -163,6 +163,7 @@ async def import_teachers(
         body.rows,
         default_password=body.default_password,
         generate_passwords=body.generate_passwords,
+        line_offset=body.line_offset,
     )
     await record_audit(
         session,

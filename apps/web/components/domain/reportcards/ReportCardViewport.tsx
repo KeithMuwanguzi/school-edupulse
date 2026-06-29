@@ -42,8 +42,8 @@ export function ReportCardViewport({ children }: ReportCardViewportProps) {
   }, []);
 
   return (
-    <div className="report-card-preview-shell report-card-no-print">
-      <p className="mb-3 text-center text-[10px] font-medium uppercase tracking-[0.14em] text-slate-400">
+    <div className="report-card-preview-shell">
+      <p className="report-card-no-print mb-3 text-center text-[10px] font-medium uppercase tracking-[0.14em] text-slate-400">
         A4 preview
         {scale < 1 ? (
           <span className="normal-case tracking-normal text-slate-400">

@@ -111,6 +111,20 @@ export function formatStudentFullName(parts: {
     .join(" ");
 }
 
+/** Alphabetical order: surname, middle name, last name (given name). */
+export function compareStudentFullName(
+  a: { first_name: string; middle_name?: string | null; last_name: string },
+  b: { first_name: string; middle_name?: string | null; last_name: string },
+): number {
+  for (const field of ["last_name", "middle_name", "first_name"] as const) {
+    const av = (a[field] ?? "").trim();
+    const bv = (b[field] ?? "").trim();
+    const cmp = av.localeCompare(bv, undefined, { sensitivity: "base" });
+    if (cmp !== 0) return cmp;
+  }
+  return 0;
+}
+
 export const OTHER_VALUE = "__other__";
 
 export const NATIONALITY_OPTIONS = [

@@ -87,6 +87,13 @@ export function scaleTemplateLabel(cycle: NcdcCycle): string {
   return cycle === "cycle_3" ? "UNEB PLE (D1–F9)" : "UNEB grades (D1–F9)";
 }
 
+/** Mark-range-first template — same D1–F9 bands, emphasises score ranges over aggregates. */
+export function markRangeTemplateLabel(_cycle: NcdcCycle): string {
+  return "Mark ranges (D1–F9)";
+}
+
+export const MARK_RANGE_GRADE_BANDS = UNEB_PLE_GRADE_BANDS;
+
 export function bandByAggregateWeight(weight: number): GradeBandTemplate | undefined {
   return UNEB_PLE_GRADE_BANDS.find((b) => b.aggregate_weight === weight);
 }

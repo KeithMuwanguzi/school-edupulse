@@ -69,12 +69,20 @@ async def validation_error_handler(
         }
         for err in exc.errors()
     ]
+    detail_parts = []
+    for err in errors[:5]:
+        field = err["field"] or "request"
+        detail_parts.append(f"{field}: {err['message']}")
+    detail = "; ".join(detail_parts)
+    if len(errors) > 5:
+        detail = f"{detail}; (+{len(errors) - 5} more)"
     # WARNING level, no stack trace (§4.6) and no PII (field names only).
     log.warning("validation_error", fields=[e["field"] for e in errors])
     body = {
         "type": "https://skulpulse.ug/errors/validation",
         "title": "Validation failed",
         "status": 422,
+        "detail": detail or "One or more fields are invalid.",
         "code": "VALIDATION_ERROR",
         "request_id": request_id,
         "errors": errors,

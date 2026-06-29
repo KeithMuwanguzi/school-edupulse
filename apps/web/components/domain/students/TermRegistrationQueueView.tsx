@@ -14,6 +14,8 @@ import { PageLoader } from "@/components/ui/Spinner";
 import { Badge } from "@/components/ui/Badge";
 import { cn } from "@/lib/cn";
 import { parseError } from "@/lib/apiError";
+import { exportRegistrationQueueExcel } from "@/lib/rosterExport";
+import { fetchRegistrationQueue } from "@/lib/rosterExportFetch";
 import type { RosterScope } from "@/lib/types";
 import {
   useAcademicContextQuery,
@@ -22,14 +24,23 @@ import {
   useRosterSummaryQuery,
   useStartRegistrationMutation,
 } from "@/store/api/skulpulseApi";
+import type { RootState } from "@/store";
+import { useSelector } from "react-redux";
 import { useToast } from "@/components/ui/Toast";
+import { TablePagination } from "@/components/ui/TablePagination";
+import { useClientPageSlice } from "@/hooks/useClientPageSlice";
+import { compareStudentFullName, ROSTER_PAGE_SIZE } from "@/lib/rosterConstants";
 import { PageToolbar, PageToolbarGroup } from "@/components/ui/PageToolbar";
 import { ClassStreamPicker } from "./ClassStreamPicker";
+import { RosterScopeLayout } from "./RosterScopeLayout";
+import { formatStudentFullName } from "./studentOptions";
 import {
   defaultRegistrationScope,
+  exportScopeToApiParams,
   registrationScopeToQueueParams,
   scopeLabel,
 } from "./rosterScope";
+import { RosterExportButton } from "./RosterExportButton";
 
 const STATUS_FILTERS = [
   { id: "", label: "All" },
@@ -54,6 +65,7 @@ function statusLabel(status: string): string {
 export function TermRegistrationQueueView({ embedded = false }: { embedded?: boolean }) {
   const router = useRouter();
   const { toast } = useToast();
+  const accessToken = useSelector((s: RootState) => s.auth.accessToken);
   const { data: academic, refetch: refetchAcademic, isFetching: fetchingAcademic } =
     useAcademicContextQuery();
   const {
@@ -88,6 +100,31 @@ export function TermRegistrationQueueView({ embedded = false }: { embedded?: boo
     skip: !queueParams,
   });
 
+  const paginationResetKey = useMemo(() => {
+    if (!scope) return "none";
+    if (scope.kind === "unassigned") return `unassigned:${statusFilter}:${query}`;
+    if (scope.kind === "class") return `class:${scope.classId}:${statusFilter}:${query}`;
+    if (scope.kind === "stream") {
+      return `stream:${scope.classId}:${scope.streamId}:${statusFilter}:${query}`;
+    }
+    return "overview";
+  }, [scope, statusFilter, query]);
+
+  const sortedQueue = useMemo(
+    () => [...queue].sort(compareStudentFullName),
+    [queue],
+  );
+
+  const {
+    page: listPage,
+    pageItems: queuePage,
+    total: queueTotal,
+    hasNext,
+    hasPrevious,
+    goNext,
+    goPrevious,
+  } = useClientPageSlice(sortedQueue, paginationResetKey);
+
   const isRefreshing =
     fetchingAcademic || fetchingRosterSummary || fetchingSummary || fetchingQueue;
 
@@ -109,6 +146,27 @@ export function TermRegistrationQueueView({ embedded = false }: { embedded?: boo
   );
 
   const rosterTitle = scope ? scopeLabel(scope, rosterSummary) : "Select a class";
+
+  async function handleExport() {
+    if (!scope || !rosterSummary) return;
+    const filters = exportScopeToApiParams(scope, query);
+    if (!filters) return;
+    try {
+      const rows = await fetchRegistrationQueue(accessToken, {
+        ...filters,
+        status: statusFilter || undefined,
+      });
+      if (!rows.length) {
+        toast("No pupils match the current filters.", "error");
+        return;
+      }
+      exportRegistrationQueueExcel(rows, scopeLabel(scope, rosterSummary));
+      toast(`Exported ${rows.length} pupil(s) to Excel.`, "success");
+    } catch (err) {
+      const p = parseError(err);
+      toast(p.message || "Export failed.", "error", p.requestId);
+    }
+  }
 
   async function openRegistration(
     studentId: string,
@@ -211,20 +269,19 @@ export function TermRegistrationQueueView({ embedded = false }: { embedded?: boo
       )}
 
       {scope ? (
-        <div className="flex flex-col gap-4">
-          <Card className="p-3 lg:p-1.5 lg:sticky lg:top-2">
+        <RosterScopeLayout
+          picker={
             <ClassStreamPicker
               summary={rosterSummary}
               scope={scope}
               registrationMode
               onChange={setScope}
             />
-          </Card>
-
-          <div className="min-w-0">
-            {queueLoading ? (
+          }
+        >
+          {queueLoading ? (
               <PageLoader />
-            ) : queue.length === 0 ? (
+            ) : sortedQueue.length === 0 ? (
               <EmptyState
                 icon={<Icon name="clipboard" size={18} />}
                 title="No learners in this roster"
@@ -236,14 +293,17 @@ export function TermRegistrationQueueView({ embedded = false }: { embedded?: boo
                   <h3 className="text-[12px] font-semibold tracking-tight text-slate-900">
                     {rosterTitle}
                   </h3>
-                  <span className="text-[11px] text-slate-400">
-                    <span className="font-medium tabular-nums text-slate-600">{queue.length}</span>{" "}
-                    in roster
-                  </span>
+                  <div className="flex flex-wrap items-center gap-2">
+                    <span className="text-[11px] text-slate-400">
+                      <span className="font-medium tabular-nums text-slate-600">{sortedQueue.length}</span>{" "}
+                      in roster
+                    </span>
+                    <RosterExportButton onExport={handleExport} />
+                  </div>
                 </div>
 
                 <div className="space-y-2 p-3 md:hidden">
-                  {queue.map((row) => {
+                  {queuePage.map((row) => {
                     const pct =
                       row.required_total > 0
                         ? Math.round((row.required_done / row.required_total) * 100)
@@ -256,7 +316,7 @@ export function TermRegistrationQueueView({ embedded = false }: { embedded?: boo
                         <div className="flex items-start justify-between gap-2">
                           <div className="min-w-0">
                             <p className="truncate font-medium text-slate-800">
-                              {row.first_name} {row.last_name}
+                              {formatStudentFullName(row)}
                             </p>
                             <p className="font-mono text-[10px] text-slate-400">{row.student_number}</p>
                           </div>
@@ -307,7 +367,7 @@ export function TermRegistrationQueueView({ embedded = false }: { embedded?: boo
                       </tr>
                     </thead>
                     <tbody>
-                      {queue.map((row) => {
+                      {queuePage.map((row) => {
                         const pct =
                           row.required_total > 0
                             ? Math.round((row.required_done / row.required_total) * 100)
@@ -319,7 +379,7 @@ export function TermRegistrationQueueView({ embedded = false }: { embedded?: boo
                           >
                             <td className="px-3 py-2.5">
                               <p className="font-medium text-slate-800">
-                                {row.first_name} {row.last_name}
+                                {formatStudentFullName(row)}
                               </p>
                               <p className="font-mono text-[10px] text-slate-400">
                                 {row.student_number}
@@ -368,10 +428,23 @@ export function TermRegistrationQueueView({ embedded = false }: { embedded?: boo
                     </tbody>
                   </table>
                 </div>
+                {(hasPrevious || hasNext || queueTotal > 0) && (
+                  <div className="px-4 pb-3">
+                    <TablePagination
+                      page={listPage}
+                      count={queuePage.length}
+                      pageSize={ROSTER_PAGE_SIZE}
+                      totalItems={queueTotal}
+                      hasNext={hasNext}
+                      loading={queueLoading}
+                      onPrevious={goPrevious}
+                      onNext={goNext}
+                    />
+                  </div>
+                )}
               </Card>
             )}
-          </div>
-        </div>
+        </RosterScopeLayout>
       ) : (
         <EmptyState
           icon={<Icon name="grid" size={18} />}

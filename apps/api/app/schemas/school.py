@@ -13,6 +13,7 @@ from app.models.enums import (
     SexComposition,
     TenantStatus,
 )
+from app.schemas.reportcard import ReportCardLayoutOut
 
 SCHOOL_CODE_PATTERN = r"^[A-Z0-9]{4,8}$"
 
@@ -154,6 +155,7 @@ class SchoolProfile(BaseModel):
     student_number_prefix: str | None = None
     report_footer_notes: str | None = None
     report_next_term_note: str | None = None
+    report_card_layout: ReportCardLayoutOut | None = None
     version: int
 
 
@@ -191,6 +193,7 @@ class SchoolUpdate(BaseModel):
     student_number_prefix: str | None = Field(default=None, max_length=10)
     report_footer_notes: str | None = None
     report_next_term_note: str | None = Field(default=None, max_length=255)
+    report_card_layout: ReportCardLayoutOut | None = None
     status: TenantStatus | None = None
     version: int | None = Field(default=None, description="optimistic lock check")
 

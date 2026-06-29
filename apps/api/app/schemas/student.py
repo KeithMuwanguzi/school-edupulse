@@ -43,6 +43,43 @@ def _norm_choice(v: str | None, allowed: set[str], label: str) -> str | None:
     return v
 
 
+_DATE_FORMATS = ("%Y-%m-%d", "%d/%m/%Y", "%d-%m-%Y", "%d/%m/%y", "%d-%m-%y")
+_SCI_NOTATION_RE = re.compile(r"^\d+(?:\.\d+)?[eE][+-]?\d+$")
+
+
+def _parse_flexible_date(v: object, *, label: str) -> dt.date | None:
+    if v is None:
+        return None
+    if isinstance(v, dt.date):
+        return v
+    if isinstance(v, dt.datetime):
+        return v.date()
+    text = str(v).strip()
+    if not text:
+        return None
+    for fmt in _DATE_FORMATS:
+        try:
+            return dt.datetime.strptime(text, fmt).date()
+        except ValueError:
+            continue
+    raise ValueError(f"{label} must be YYYY-MM-DD or DD/MM/YYYY (got '{text}')")
+
+
+def _normalize_spreadsheet_phone(v: object) -> str | None:
+    if v is None:
+        return None
+    text = str(v).strip()
+    if not text:
+        return None
+    if _SCI_NOTATION_RE.match(text):
+        try:
+            as_int = int(float(text))
+            return str(as_int)
+        except ValueError:
+            return text
+    return text
+
+
 # --- Guardians -------------------------------------------------------------
 
 
@@ -353,6 +390,17 @@ class StudentImportRow(BaseModel):
     allergies: str | None = None
     medical_conditions: str | None = None
 
+    @field_validator("date_of_birth", "admission_date", mode="before")
+    @classmethod
+    def _parse_dates(cls, v: object, info) -> dt.date | None:
+        label = "date_of_birth" if info.field_name == "date_of_birth" else "admission_date"
+        return _parse_flexible_date(v, label=label)
+
+    @field_validator("guardian_phone", mode="before")
+    @classmethod
+    def _normalize_guardian_phone(cls, v: object) -> str | None:
+        return _normalize_spreadsheet_phone(v)
+
     @field_validator("class_level")
     @classmethod
     def _validate_class_level(cls, v: str | None) -> str | None:
@@ -380,6 +428,7 @@ class StudentImportRequest(BaseModel):
     rows: list[StudentImportRow] = Field(min_length=1, max_length=1000)
     skip_duplicates: bool = True
     dry_run: bool = False
+    line_offset: int = Field(default=0, ge=0)
 
 
 class StudentImportRowResult(BaseModel):

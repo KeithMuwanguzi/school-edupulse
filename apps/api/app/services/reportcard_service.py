@@ -8,6 +8,7 @@ from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.errors import NotFoundError, ValidationError
+from app.core.report_card_defaults import merge_report_card_layout
 from app.models.academic import AcademicYear, Term
 from app.models.assessment import (
     AssessmentSet,
@@ -29,6 +30,7 @@ from app.schemas.reportcard import (
     ReportCardClassOption,
     ReportCardFooterOut,
     ReportCardGradeKey,
+    ReportCardLayoutOut,
     ReportCardPreviewOut,
     ReportCardSchoolBranding,
     ReportCardSetScore,
@@ -605,6 +607,7 @@ async def get_preview(
     )
 
     return ReportCardPreviewOut(
+        layout=ReportCardLayoutOut(**merge_report_card_layout(school.report_card_layout)),
         school=ReportCardSchoolBranding(
             name=school.name,
             motto=school.motto,

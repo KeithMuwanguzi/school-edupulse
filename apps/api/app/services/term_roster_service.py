@@ -54,7 +54,12 @@ def registered_students_stmt(
         stmt = stmt.where(Student.class_id == class_id)
         if stream_id is not None:
             stmt = stmt.where(Student.stream_id == stream_id)
-    return stmt.order_by(Student.student_number, Student.id)
+    return stmt.order_by(
+        Student.last_name,
+        func.coalesce(Student.middle_name, ""),
+        Student.first_name,
+        Student.id,
+    )
 
 
 async def list_registered_students(
@@ -113,6 +118,7 @@ async def list_registered_students(
                 student_id=student.id,
                 student_number=student.student_number,
                 first_name=student.first_name,
+                middle_name=student.middle_name,
                 last_name=student.last_name,
                 class_level=class_level,
                 class_label=class_label,

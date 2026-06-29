@@ -15,6 +15,8 @@ import type {
   AcademicYearOut,
   TermOut,
   AcademicYearWithTerms,
+  TermCalendarEventOut,
+  CircularOut,
   CursorPage,
   ErrorLogItem,
   InvoiceBreakdown,
@@ -159,7 +161,7 @@ function idempotent(): FetchArgs["headers"] {
 export const skulpulseApi = createApi({
   reducerPath: "skulpulseApi",
   baseQuery: baseQueryWithReauth,
-  tagTypes: ["Schools", "School", "Me", "TenantSchool", "TenantModules", "AcademicCalendar", "Subjects", "Classes", "TenantUsers", "Students", "Teachers", "Attendance", "Timetable", "TermRegistration", "Grading", "Admissions", "ReportCards", "Finance", "Assessment", "Ple", "Hostel", "PlatformAdmins"],
+  tagTypes: ["Schools", "School", "Me", "TenantSchool", "TenantModules", "AcademicCalendar", "TermCalendar", "Circulars", "Subjects", "Classes", "TenantUsers", "Students", "Teachers", "Attendance", "Timetable", "TermRegistration", "Grading", "Admissions", "ReportCards", "Finance", "Assessment", "Ple", "Hostel", "PlatformAdmins"],
   endpoints: (builder) => ({
     // --- Auth ---
     platformLogin: builder.mutation<TokenResponse, { email: string; password: string }>({
@@ -488,6 +490,137 @@ export const skulpulseApi = createApi({
       }),
       invalidatesTags: ["AcademicCalendar"],
     }),
+    listTermCalendarEvents: builder.query<
+      TermCalendarEventOut[],
+      { yearId: string; termId?: string }
+    >({
+      query: ({ yearId, termId }) => {
+        const p = termId ? `?term_id=${termId}` : "";
+        return `/tenant/academic-years/${yearId}/calendar-events${p}`;
+      },
+      providesTags: (_r, _e, { yearId }) => [{ type: "TermCalendar", id: yearId }],
+    }),
+    createTermCalendarEvent: builder.mutation<
+      TermCalendarEventOut,
+      {
+        yearId: string;
+        termId: string;
+        body: {
+          event_type: string;
+          title: string;
+          starts_on: string;
+          ends_on: string;
+          description?: string | null;
+        };
+      }
+    >({
+      query: ({ yearId, termId, body }) => ({
+        url: `/tenant/academic-years/${yearId}/terms/${termId}/calendar-events`,
+        method: "POST",
+        body,
+      }),
+      invalidatesTags: (_r, _e, { yearId }) => [{ type: "TermCalendar", id: yearId }],
+    }),
+    updateTermCalendarEvent: builder.mutation<
+      TermCalendarEventOut,
+      {
+        yearId: string;
+        termId: string;
+        eventId: string;
+        body: Record<string, unknown>;
+      }
+    >({
+      query: ({ yearId, termId, eventId, body }) => ({
+        url: `/tenant/academic-years/${yearId}/terms/${termId}/calendar-events/${eventId}`,
+        method: "PATCH",
+        body,
+      }),
+      invalidatesTags: (_r, _e, { yearId }) => [{ type: "TermCalendar", id: yearId }],
+    }),
+    deleteTermCalendarEvent: builder.mutation<
+      void,
+      { yearId: string; termId: string; eventId: string }
+    >({
+      query: ({ yearId, termId, eventId }) => ({
+        url: `/tenant/academic-years/${yearId}/terms/${termId}/calendar-events/${eventId}`,
+        method: "DELETE",
+      }),
+      invalidatesTags: (_r, _e, { yearId }) => [{ type: "TermCalendar", id: yearId }],
+    }),
+
+    listCirculars: builder.query<CircularOut[], { status?: string } | void>({
+      query: (args) => {
+        const status = args && "status" in args && args.status ? `?status=${args.status}` : "";
+        return `/tenant/circulars${status}`;
+      },
+      providesTags: ["Circulars"],
+    }),
+    listCircularInbox: builder.query<CircularOut[], void>({
+      query: () => "/tenant/circulars/inbox",
+      providesTags: ["Circulars"],
+    }),
+    getCircular: builder.query<CircularOut, string>({
+      query: (circularId) => `/tenant/circulars/${circularId}`,
+      providesTags: (_r, _e, id) => [{ type: "Circulars", id }],
+    }),
+    createCircular: builder.mutation<
+      CircularOut,
+      {
+        title: string;
+        body: string;
+        audience: string;
+        priority?: string;
+        class_id?: string | null;
+        stream_id?: string | null;
+      }
+    >({
+      query: (body) => ({ url: "/tenant/circulars", method: "POST", body }),
+      invalidatesTags: ["Circulars"],
+    }),
+    updateCircular: builder.mutation<
+      CircularOut,
+      { circularId: string; body: Record<string, unknown> }
+    >({
+      query: ({ circularId, body }) => ({
+        url: `/tenant/circulars/${circularId}`,
+        method: "PATCH",
+        body,
+      }),
+      invalidatesTags: ["Circulars"],
+    }),
+    publishCircular: builder.mutation<CircularOut, string>({
+      query: (circularId) => ({
+        url: `/tenant/circulars/${circularId}/publish`,
+        method: "POST",
+      }),
+      invalidatesTags: ["Circulars"],
+    }),
+    deleteCircular: builder.mutation<void, string>({
+      query: (circularId) => ({
+        url: `/tenant/circulars/${circularId}`,
+        method: "DELETE",
+      }),
+      invalidatesTags: ["Circulars"],
+    }),
+    uploadCircularAttachment: builder.mutation<CircularOut, { circularId: string; file: File }>({
+      query: ({ circularId, file }) => {
+        const body = new FormData();
+        body.append("file", file);
+        return {
+          url: `/tenant/circulars/${circularId}/attachment`,
+          method: "POST",
+          body,
+        };
+      },
+      invalidatesTags: ["Circulars"],
+    }),
+    deleteCircularAttachment: builder.mutation<CircularOut, string>({
+      query: (circularId) => ({
+        url: `/tenant/circulars/${circularId}/attachment`,
+        method: "DELETE",
+      }),
+      invalidatesTags: ["Circulars"],
+    }),
 
     listSubjects: builder.query<SubjectOut[], void>({
       query: () => "/tenant/subjects",
@@ -638,6 +771,7 @@ export const skulpulseApi = createApi({
         rows: { login_id: string; name: string; email?: string; role_key?: string }[];
         default_password?: string;
         generate_passwords?: boolean;
+        line_offset?: number;
       }
     >({
       query: (body) => ({
@@ -733,6 +867,7 @@ export const skulpulseApi = createApi({
         rows: Record<string, unknown>[];
         skip_duplicates?: boolean;
         dry_run?: boolean;
+        line_offset?: number;
       }
     >({
       query: (body) => ({
@@ -1857,6 +1992,18 @@ export const {
   useActivateAcademicYearMutation,
   useUpdateTermMutation,
   useActivateTermMutation,
+  useListTermCalendarEventsQuery,
+  useCreateTermCalendarEventMutation,
+  useUpdateTermCalendarEventMutation,
+  useDeleteTermCalendarEventMutation,
+  useListCircularsQuery,
+  useListCircularInboxQuery,
+  useCreateCircularMutation,
+  useUpdateCircularMutation,
+  usePublishCircularMutation,
+  useDeleteCircularMutation,
+  useUploadCircularAttachmentMutation,
+  useDeleteCircularAttachmentMutation,
   useListSubjectsQuery,
   useCreateSubjectMutation,
   useUpdateSubjectMutation,

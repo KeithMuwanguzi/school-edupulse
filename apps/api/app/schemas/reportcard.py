@@ -7,6 +7,26 @@ from uuid import UUID
 from pydantic import BaseModel, Field
 
 
+class ReportCardSectionsConfig(BaseModel):
+    header: bool = True
+    assessment_matrix: bool = True
+    subject_performance: bool = True
+    summary_bar: bool = True
+    grading_key: bool = True
+    attendance: bool = True
+    teacher_comments: bool = True
+    footer: bool = True
+    signatures: bool = True
+    show_aggregate: bool = True
+
+
+class ReportCardLayoutOut(BaseModel):
+    template_id: str = "uneb_standard_v1"
+    document_title: str = "Terminal Report"
+    primary_color: str = "#0f4c43"
+    sections: ReportCardSectionsConfig = Field(default_factory=ReportCardSectionsConfig)
+
+
 class ReportCardSchoolBranding(BaseModel):
     name: str
     motto: str | None = None
@@ -93,6 +113,7 @@ class ReportCardAttendanceOut(BaseModel):
 
 
 class ReportCardPreviewOut(BaseModel):
+    layout: ReportCardLayoutOut = Field(default_factory=ReportCardLayoutOut)
     school: ReportCardSchoolBranding
     student: ReportCardStudentOut
     term: ReportCardTermOut

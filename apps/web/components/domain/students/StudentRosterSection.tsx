@@ -10,16 +10,29 @@ import { EmptyState } from "@/components/ui/EmptyState";
 import { Icon } from "@/components/ui/Icon";
 import { Input } from "@/components/ui/Input";
 import { RefreshButton, refreshQueries } from "@/components/ui/RefreshButton";
+import { TablePagination } from "@/components/ui/TablePagination";
+import { useCursorPageStack } from "@/hooks/useCursorPageStack";
+import { ROSTER_PAGE_SIZE } from "@/lib/rosterConstants";
+import { exportStudentRosterExcel } from "@/lib/rosterExport";
+import { fetchAllStudents } from "@/lib/rosterExportFetch";
+import { parseError } from "@/lib/apiError";
 import type { RosterScope } from "@/lib/types";
 import { useListClassesQuery, useListStudentsQuery, useRosterSummaryQuery } from "@/store/api/skulpulseApi";
+import type { RootState } from "@/store";
+import { useSelector } from "react-redux";
 import { PageToolbar, PageToolbarGroup } from "@/components/ui/PageToolbar";
+import { useToast } from "@/components/ui/Toast";
 import { ClassStreamPicker } from "./ClassStreamPicker";
+import { RosterExportButton } from "./RosterExportButton";
+import { RosterScopeLayout } from "./RosterScopeLayout";
 import { StudentOverviewCards } from "./StudentOverviewCards";
 import { StudentBulkMoveBar } from "./StudentBulkMoveBar";
 import { StudentRosterTable } from "./StudentRosterTable";
 import {
   defaultRosterScope,
   defaultTeacherRosterScope,
+  exportScopeToApiParams,
+  rosterCountForScope,
   scopeLabel,
   scopeToListParams,
 } from "./rosterScope";
@@ -38,6 +51,8 @@ export function StudentRosterSection({
   isTeacher = false,
 }: StudentRosterSectionProps) {
   const router = useRouter();
+  const { toast } = useToast();
+  const accessToken = useSelector((s: RootState) => s.auth.accessToken);
   const { data: summary, isLoading: summaryLoading, refetch: refetchSummary, isFetching: fetchingSummary } =
     useRosterSummaryQuery();
   const { data: classes = [], refetch: refetchClasses, isFetching: fetchingClasses } =
@@ -45,6 +60,16 @@ export function StudentRosterSection({
   const [scope, setScope] = useState<RosterScope | null>(null);
   const [query, setQuery] = useState("");
   const [bulkSelected, setBulkSelected] = useState<string[]>([]);
+
+  const paginationResetKey = useMemo(() => {
+    if (!scope) return "none";
+    if (scope.kind === "overview") return "overview";
+    if (scope.kind === "unassigned") return `unassigned:${query}`;
+    if (scope.kind === "class") return `class:${scope.classId}:${query}`;
+    return `stream:${scope.classId}:${scope.streamId}:${query}`;
+  }, [scope, query]);
+
+  const { page: listPage, cursor, goNext, goPrevious } = useCursorPageStack(paginationResetKey);
 
   useEffect(() => {
     if (scope === null && summary) {
@@ -59,12 +84,14 @@ export function StudentRosterSection({
     }
   }, [isTeacher, scope, summary]);
 
-  const listParams = useMemo(
-    () => (scope ? scopeToListParams(scope, query) : undefined),
-    [scope, query],
-  );
+  const listParams = useMemo(() => {
+    if (!scope) return undefined;
+    const base = scopeToListParams(scope, query);
+    if (!base) return undefined;
+    return { ...base, cursor };
+  }, [scope, query, cursor]);
 
-  const { data: page, isLoading: listLoading, refetch: refetchStudents, isFetching: fetchingStudents } =
+  const { data: studentPage, isLoading: listLoading, refetch: refetchStudents, isFetching: fetchingStudents } =
     useListStudentsQuery(listParams, {
     skip: !listParams,
   });
@@ -75,7 +102,11 @@ export function StudentRosterSection({
     await refreshQueries(refetchSummary, refetchClasses, refetchStudents);
   }
 
-  const students = page?.items ?? [];
+  const students = studentPage?.items ?? [];
+  const rosterTotal = useMemo(() => {
+    if (!scope || !summary || query.trim()) return undefined;
+    return rosterCountForScope(scope, summary);
+  }, [scope, summary, query]);
   const rosterTitle = scope ? scopeLabel(scope, summary) : "Students";
   const emptyMessage =
     scope?.kind === "unassigned"
@@ -98,6 +129,26 @@ export function StudentRosterSection({
       return [...merged];
     });
   }
+
+  async function handleExport() {
+    if (!scope || !summary || scope.kind === "overview") return;
+    const filters = exportScopeToApiParams(scope, query);
+    if (!filters) return;
+    try {
+      const items = await fetchAllStudents(accessToken, filters);
+      if (!items.length) {
+        toast("No pupils match the current filters.", "error");
+        return;
+      }
+      exportStudentRosterExcel(items, scopeLabel(scope, summary));
+      toast(`Exported ${items.length} pupil(s) to Excel.`, "success");
+    } catch (err) {
+      const p = parseError(err);
+      toast(p.message || "Export failed.", "error", p.requestId);
+    }
+  }
+
+  const canExport = scope != null && scope.kind !== "overview";
 
   const actions = isAdmin ? (
     <PageToolbarGroup>
@@ -185,8 +236,8 @@ export function StudentRosterSection({
           }
         />
       ) : scope ? (
-        <div className="flex flex-col gap-4">
-          <Card className="p-3 lg:p-1.5 lg:sticky lg:top-2">
+        <RosterScopeLayout
+          picker={
             <ClassStreamPicker
               summary={summary}
               scope={scope}
@@ -196,7 +247,8 @@ export function StudentRosterSection({
                 setBulkSelected([]);
               }}
             />
-          </Card>
+          }
+        >
             {scope.kind === "overview" && !isTeacher ? (
               <StudentOverviewCards
                 summary={summary}
@@ -220,18 +272,21 @@ export function StudentRosterSection({
                     <h3 className="text-[12px] font-semibold tracking-tight text-slate-900">
                       {rosterTitle}
                     </h3>
-                    <span className="text-[11px] text-slate-400">
-                      <span className="font-medium tabular-nums text-slate-600">
-                        {students.length}
-                      </span>{" "}
-                      shown
-                      {!isTeacher && (
-                        <>
-                          {" "}
-                          · {summary.total} in school
-                        </>
-                      )}
-                    </span>
+                    <div className="flex flex-wrap items-center gap-2">
+                      <span className="text-[11px] text-slate-400">
+                        <span className="font-medium tabular-nums text-slate-600">
+                          {students.length}
+                        </span>{" "}
+                        on this page
+                        {!isTeacher && scope.kind !== "overview" && (
+                          <>
+                            {" "}
+                            · {summary.total} in school
+                          </>
+                        )}
+                      </span>
+                      {canExport && <RosterExportButton onExport={handleExport} />}
+                    </div>
                   </div>
                   <div className="px-1.5 py-1">
                     <StudentRosterTable
@@ -245,15 +300,24 @@ export function StudentRosterSection({
                       onToggleAll={toggleBulkAll}
                     />
                   </div>
-                  {page?.has_more && (
-                    <p className="border-t border-slate-100 px-4 py-2 text-[10px] text-slate-400">
-                      Showing first {students.length} — narrow with search.
-                    </p>
+                  {(listPage > 1 || studentPage?.has_more || (rosterTotal ?? 0) > 0) && (
+                    <div className="px-4 pb-3">
+                      <TablePagination
+                        page={listPage}
+                        count={students.length}
+                        pageSize={ROSTER_PAGE_SIZE}
+                        totalItems={rosterTotal}
+                        hasNext={Boolean(studentPage?.has_more)}
+                        loading={listLoading}
+                        onPrevious={goPrevious}
+                        onNext={() => goNext(studentPage?.next_cursor)}
+                      />
+                    </div>
                   )}
                 </Card>
               </div>
             )}
-        </div>
+        </RosterScopeLayout>
       ) : (
         <EmptyState
           icon={<Icon name="grid" size={18} />}

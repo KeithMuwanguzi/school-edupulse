@@ -4,6 +4,7 @@ import { SettingsEmptyState } from "@/components/layout/settingsUi";
 import { Badge } from "@/components/ui/Badge";
 import { Table, TBody, TD, TH, THead, TR, SkeletonRows } from "@/components/ui/Table";
 import type { StudentOut } from "@/lib/types";
+import { formatStudentFullName } from "./studentOptions";
 
 function formatGender(gender?: string | null): string {
   if (!gender) return "—";
@@ -37,7 +38,7 @@ function StudentMobileCard({
   onSelect: () => void;
   onToggleSelect?: () => void;
 }) {
-  const fullName = `${student.first_name} ${student.last_name}`;
+  const fullName = formatStudentFullName(student);
 
   return (
     <button
@@ -189,7 +190,7 @@ export function StudentRosterTable({
           </THead>
           <TBody>
             {students.map((student) => {
-              const fullName = `${student.first_name} ${student.last_name}`;
+              const fullName = formatStudentFullName(student);
               const active = selectedId === student.id;
               const checked = selectedIds.includes(student.id);
               return (

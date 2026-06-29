@@ -10,10 +10,12 @@ from app.core.context import TenantContext
 from app.core.db import apply_tenant_guc, get_session
 from app.core.dependencies import get_tenant_context, require_role
 from app.core.errors import ConflictError, NotFoundError, StaleVersionError
+from app.core.report_card_defaults import merge_report_card_layout
 from app.models.enums import ActorType
 from app.models.platform import Tenant
 from app.models.school import School
 from app.schemas.academic import AcademicContextEnriched
+from app.schemas.reportcard import ReportCardLayoutOut
 from app.schemas.school import (
     SchoolDetail,
     SchoolProfile,
@@ -23,6 +25,10 @@ from app.services import academic_service, cache_service, school_badge_service, 
 from app.services.audit_service import record_audit
 
 router = APIRouter(prefix="/tenant", tags=["tenant:school"])
+
+
+def _layout_from_school(school: School) -> ReportCardLayoutOut:
+    return ReportCardLayoutOut(**merge_report_card_layout(school.report_card_layout))
 
 
 async def _build_detail(session: AsyncSession, tenant_id) -> SchoolDetail:
@@ -69,6 +75,7 @@ async def _build_detail(session: AsyncSession, tenant_id) -> SchoolDetail:
             student_number_prefix=school.student_number_prefix,
             report_footer_notes=school.report_footer_notes,
             report_next_term_note=school.report_next_term_note,
+            report_card_layout=_layout_from_school(school),
             version=school.version,
         ),
     )
@@ -98,10 +105,26 @@ async def update_school(
         raise StaleVersionError("This profile was modified by someone else. Reload and retry.")
 
     # Tenants cannot change their own status, school_code or emis_number here.
-    changes = body.model_dump(exclude_none=True, exclude={"version", "status"})
+    changes = body.model_dump(exclude_none=True, exclude={"version", "status", "report_card_layout"})
+    layout_updated = False
+    if body.report_card_layout is not None:
+        layout_patch = body.report_card_layout
+        merged = merge_report_card_layout(
+            {
+                **merge_report_card_layout(school.report_card_layout),
+                **layout_patch.model_dump(exclude={"sections"}),
+                "sections": {
+                    **merge_report_card_layout(school.report_card_layout)["sections"],
+                    **layout_patch.sections.model_dump(),
+                },
+            }
+        )
+        school.report_card_layout = merged
+        layout_updated = True
     for field, value in changes.items():
         setattr(school, field, value)
-    if changes:
+    if changes or layout_updated:
+        school.version += 1
         school.version += 1
 
     if "student_number_prefix" in changes:
@@ -121,7 +144,7 @@ async def update_school(
         action="school.updated",
         resource_type="school",
         resource_id=school.id,
-        metadata={"fields": list(changes.keys())},
+        metadata={"fields": list(changes.keys()) + (["report_card_layout"] if layout_updated else [])},
         ip_address=request.client.host if request.client else None,
     )
     await session.commit()

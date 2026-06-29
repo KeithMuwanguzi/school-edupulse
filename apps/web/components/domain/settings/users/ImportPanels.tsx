@@ -7,9 +7,17 @@ import { FormField } from "@/components/ui/FormField";
 import { Input } from "@/components/ui/Input";
 import { Label } from "@/components/ui/Label";
 import { parseError } from "@/lib/apiError";
+import {
+  runUserImportBatches,
+  TEACHER_IMPORT_BATCH_SIZE,
+} from "@/lib/importBatch";
 import { toastGuardianImport, toastStaffImport } from "@/lib/importToasts";
 import type { ImportUsersResponse } from "@/lib/types";
 import { useToast } from "@/components/ui/Toast";
+import {
+  ImportProgressPanel,
+  type ImportProgressState,
+} from "@/components/ui/ImportProgressPanel";
 import { useImportGuardiansMutation, useImportTeachersMutation } from "@/store/api/skulpulseApi";
 import { csvHasHeader, parseCsv } from "./csvParse";
 import { ImportResultList } from "./UserForms";
@@ -112,7 +120,9 @@ export function ImportTeachersPanel({ schoolCode }: ImportPanelProps) {
   const [useSharedPassword, setUseSharedPassword] = useState(false);
   const [sharedPassword, setSharedPassword] = useState("");
   const [result, setResult] = useState<ImportUsersResponse | null>(null);
-  const [importTeachers, { isLoading }] = useImportTeachersMutation();
+  const [importProgress, setImportProgress] = useState<ImportProgressState | null>(null);
+  const [working, setWorking] = useState(false);
+  const [importTeachers] = useImportTeachersMutation();
 
   async function runImport() {
     const rows = parseTeacherRows(csv).filter((r) => r.login_id && r.name && r.email);
@@ -120,17 +130,30 @@ export function ImportTeachersPanel({ schoolCode }: ImportPanelProps) {
       toast("Each row needs login_id, name, and email.", "error");
       return;
     }
+    setWorking(true);
+    setImportProgress(null);
     try {
-      const res = await importTeachers({
+      const res = await runUserImportBatches(
         rows,
-        generate_passwords: generatePasswords && !useSharedPassword,
-        default_password: useSharedPassword ? sharedPassword : undefined,
-      }).unwrap();
+        TEACHER_IMPORT_BATCH_SIZE,
+        "Importing staff",
+        (batch, lineOffset) =>
+          importTeachers({
+            rows: batch,
+            generate_passwords: generatePasswords && !useSharedPassword,
+            default_password: useSharedPassword ? sharedPassword : undefined,
+            line_offset: lineOffset,
+          }).unwrap(),
+        (done, total, phase) => setImportProgress({ done, total, phase }),
+      );
       setResult(res);
       toastStaffImport(toast, res);
     } catch (err) {
       const p = parseError(err);
       toast(p.message, "error", p.requestId);
+    } finally {
+      setWorking(false);
+      setImportProgress(null);
     }
   }
 
@@ -154,7 +177,7 @@ export function ImportTeachersPanel({ schoolCode }: ImportPanelProps) {
         />
       </FormField>
       <div className="flex flex-wrap items-center gap-2">
-        <Button size="sm" loading={isLoading} onClick={() => void runImport()}>
+        <Button size="sm" loading={working} disabled={working} onClick={() => void runImport()}>
           Import
         </Button>
         <Label className="cursor-pointer">
@@ -171,6 +194,7 @@ export function ImportTeachersPanel({ schoolCode }: ImportPanelProps) {
           />
         </Label>
       </div>
+      <ImportProgressPanel progress={importProgress} />
       <ImportResultList result={result} />
     </div>
   );

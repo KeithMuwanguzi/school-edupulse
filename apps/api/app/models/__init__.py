@@ -10,7 +10,8 @@ from app.models.geo import County, District, Parish, Region, SubCounty
 from app.models.school import School
 from app.models.user import RefreshToken, Role, TenantUser
 from app.models.subscription import SchoolModuleSubscription, SubscriptionChangeLog
-from app.models.academic import AcademicYear, Term
+from app.models.academic import AcademicYear, Term, TermCalendarEvent
+from app.models.circular import Circular
 from app.models.subject import Subject
 from app.models.student import (
     Student,
@@ -67,6 +68,8 @@ __all__ = [
     "SubscriptionChangeLog",
     "AcademicYear",
     "Term",
+    "TermCalendarEvent",
+    "Circular",
     "Subject",
     "Student",
     "StudentGuardian",

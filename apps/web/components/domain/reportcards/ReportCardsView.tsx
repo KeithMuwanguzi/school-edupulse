@@ -1,11 +1,11 @@
 "use client";
 
-import { useMemo, useRef, useState } from "react";
+import { useMemo, useState } from "react";
 import { ReportCardPreview } from "@/components/domain/reportcards/ReportCardPreview";
 import { ReportCardViewport } from "@/components/domain/reportcards/ReportCardViewport";
 import {
   exportClassZip,
-  exportElementToPdf,
+  exportReportCardToPdf,
   type ClassExportItem,
   type ClassExportProgress,
 } from "@/components/domain/reportcards/reportCardExport";
@@ -40,10 +40,9 @@ export function ReportCardsView() {
   const [classId, setClassId] = useState("");
   const [studentId, setStudentId] = useState("");
 
-  const cardRef = useRef<HTMLDivElement>(null);
+  const [exportError, setExportError] = useState<string | null>(null);
   const [exporting, setExporting] = useState(false);
   const [progress, setProgress] = useState<ClassExportProgress | null>(null);
-  const [exportError, setExportError] = useState<string | null>(null);
 
   const {
     data: students,
@@ -74,9 +73,7 @@ export function ReportCardsView() {
   }
 
   async function handleExportIndividual() {
-    if (!cardRef.current || !preview) return;
-    const target = cardRef.current.querySelector(".report-card-print") as HTMLElement | null;
-    if (!target) return;
+    if (!preview) return;
     setExportError(null);
     setExporting(true);
     try {
@@ -85,7 +82,7 @@ export function ReportCardsView() {
         middle_name: preview.student.middle_name,
         first_name: preview.student.first_name,
       });
-      await exportElementToPdf(target, `${name} - ${termLabel}`);
+      await exportReportCardToPdf(preview, `${name} - ${termLabel}`);
     } catch (err) {
       setExportError(err instanceof Error ? err.message : "Failed to export PDF.");
     } finally {
@@ -120,19 +117,10 @@ export function ReportCardsView() {
         return;
       }
 
-      const { createRoot } = await import("react-dom/client");
       await exportClassZip(items, {
         className: selectedClass.class_label,
         termLabel,
         onProgress: setProgress,
-        renderCard: async (data, host) => {
-          const root = createRoot(host);
-          await new Promise<void>((resolve) => {
-            root.render(<ReportCardPreview data={data} />);
-            requestAnimationFrame(() => requestAnimationFrame(() => resolve()));
-          });
-          return () => root.unmount();
-        },
       });
     } catch (err) {
       setExportError(err instanceof Error ? err.message : "Failed to export class report cards.");
@@ -291,7 +279,7 @@ export function ReportCardsView() {
         </div>
       ) : null}
       {preview && !previewFetching ? (
-        <div ref={cardRef}>
+        <div>
           <ReportCardViewport>
             <ReportCardPreview data={preview} />
           </ReportCardViewport>

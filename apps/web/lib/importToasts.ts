@@ -8,6 +8,17 @@ import type {
 
 type ToastFn = (message: string, tone?: ToastTone, requestId?: string) => void;
 
+function sampleRowFailures(
+  results: { line: number; status: string; message?: string | null }[],
+  limit = 3,
+): string {
+  const samples = results
+    .filter((r) => r.status === "failed" && r.message)
+    .slice(0, limit)
+    .map((r) => `Line ${r.line}: ${r.message}`);
+  return samples.length ? ` ${samples.join(" · ")}` : "";
+}
+
 export function toastStudentImportValidate(
   toast: ToastFn,
   res: StudentImportResponse,
@@ -16,7 +27,10 @@ export function toastStudentImportValidate(
     const classHint = res.results.some((r) => r.message?.includes("not found"))
       ? " Check classes and streams under Academics."
       : "";
-    toast(`${res.failed} row(s) failed validation.${classHint}`, "error");
+    toast(
+      `${res.failed} row(s) failed validation.${sampleRowFailures(res.results)}${classHint}`,
+      "error",
+    );
     return false;
   }
   if (res.valid === 0) {

@@ -9,12 +9,20 @@ import { FormField } from "@/components/ui/FormField";
 import { Select } from "@/components/ui/Select";
 import { parseError } from "@/lib/apiError";
 import {
+  runStudentImportBatches,
+  STUDENT_IMPORT_BATCH_SIZE,
+} from "@/lib/importBatch";
+import {
   toastStudentImportCommit,
   toastStudentImportValidate,
 } from "@/lib/importToasts";
 import type { StudentImportResponse } from "@/lib/types";
 import { useImportStudentsMutation } from "@/store/api/skulpulseApi";
 import { useToast } from "@/components/ui/Toast";
+import {
+  ImportProgressPanel,
+  type ImportProgressState,
+} from "@/components/ui/ImportProgressPanel";
 import {
   downloadStudentTemplate,
   mappedRowsToApi,
@@ -46,7 +54,9 @@ export function StudentImportSection({ onBack }: StudentImportSectionProps) {
   const [mappedRows, setMappedRows] = useState<StudentImportMappedRow[]>([]);
   const [validation, setValidation] = useState<StudentImportResponse | null>(null);
   const [importResult, setImportResult] = useState<StudentImportResponse | null>(null);
-  const [importStudents, { isLoading }] = useImportStudentsMutation();
+  const [importProgress, setImportProgress] = useState<ImportProgressState | null>(null);
+  const [working, setWorking] = useState(false);
+  const [importStudents] = useImportStudentsMutation();
 
   const previewRows = useMemo(
     () => rowsToImportPayload(rawRows, columnMap).slice(0, 5),
@@ -94,33 +104,61 @@ export function StudentImportSection({ onBack }: StudentImportSectionProps) {
   }
 
   async function runValidate() {
+    setWorking(true);
+    setImportProgress(null);
     try {
-      const res = await importStudents({
-        rows: mappedRowsToApi(mappedRows),
-        skip_duplicates: true,
-        dry_run: true,
-      }).unwrap();
+      const apiRows = mappedRowsToApi(mappedRows);
+      const res = await runStudentImportBatches(
+        apiRows,
+        STUDENT_IMPORT_BATCH_SIZE,
+        "Validating rows",
+        (batch, lineOffset) =>
+          importStudents({
+            rows: batch,
+            skip_duplicates: true,
+            dry_run: true,
+            line_offset: lineOffset,
+          }).unwrap(),
+        (done, total, phase) => setImportProgress({ done, total, phase }),
+      );
       setValidation(res);
       if (!toastStudentImportValidate(toast, res)) return;
       setStep("Import");
     } catch (err) {
       const p = parseError(err);
       toast(p.message, "error", p.requestId);
+    } finally {
+      setWorking(false);
+      setImportProgress(null);
     }
   }
 
   async function runImport() {
+    setWorking(true);
+    setImportProgress(null);
     try {
-      const res = await importStudents({
-        rows: mappedRowsToApi(mappedRows),
-        skip_duplicates: true,
-        dry_run: false,
-      }).unwrap();
+      const apiRows = mappedRowsToApi(mappedRows);
+      const res = await runStudentImportBatches(
+        apiRows,
+        STUDENT_IMPORT_BATCH_SIZE,
+        "Importing pupils",
+        (batch, lineOffset) =>
+          importStudents({
+            rows: batch,
+            skip_duplicates: true,
+            dry_run: false,
+            line_offset: lineOffset,
+          }).unwrap(),
+        (done, total, phase) => setImportProgress({ done, total, phase }),
+      );
       setImportResult(res);
       toastStudentImportCommit(toast, res);
     } catch (err) {
       const p = parseError(err);
       toast(p.message, "error", p.requestId);
+    } finally {
+      setWorking(false);
+      setImportProgress(null);
     }
   }
 
@@ -133,11 +171,21 @@ export function StudentImportSection({ onBack }: StudentImportSectionProps) {
           {result.valid > 0 && ` · Valid ${result.valid}`}
         </p>
         {result.results.length > 0 && (
-          <ul className="max-h-40 space-y-0.5 overflow-y-auto rounded border border-slate-100 bg-slate-50/50 px-2 py-1.5 font-mono text-[10px] text-slate-500">
-            {result.results.slice(0, 30).map((row) => (
-              <li key={`${row.line}-${row.identifier}`}>
-                {row.line}: {row.identifier} — {row.status}
-                {row.message ? ` (${row.message})` : ""}
+          <ul className="max-h-52 space-y-0.5 overflow-y-auto rounded border border-slate-100 bg-slate-50/50 px-2 py-1.5 font-mono text-[10px] text-slate-500">
+            {[...result.results]
+              .sort((a, b) => {
+                if (a.status === "failed" && b.status !== "failed") return -1;
+                if (b.status === "failed" && a.status !== "failed") return 1;
+                return a.line - b.line;
+              })
+              .slice(0, 50)
+              .map((row) => (
+              <li
+                key={`${row.line}-${row.identifier}`}
+                className={row.status === "failed" ? "text-red-700" : undefined}
+              >
+                Line {row.line}: {row.identifier} — {row.status}
+                {row.message ? ` — ${row.message}` : ""}
               </li>
             ))}
           </ul>
@@ -286,11 +334,19 @@ export function StudentImportSection({ onBack }: StudentImportSectionProps) {
               {mappedRows.length} row(s) mapped — checking against your school data. Each learner
               gets a fresh student number on import.
             </p>
+            {renderResults(validation)}
+            <ImportProgressPanel progress={importProgress} />
             <div className="flex gap-2">
-              <Button size="sm" variant="ghost" onClick={() => setStep("Map columns")}>
+              <Button size="sm" variant="ghost" onClick={() => setStep("Map columns")} disabled={working}>
                 Back
               </Button>
-              <Button size="sm" variant="secondary" loading={isLoading} onClick={() => void runValidate()}>
+              <Button
+                size="sm"
+                variant="secondary"
+                loading={working}
+                disabled={working}
+                onClick={() => void runValidate()}
+              >
                 Validate
               </Button>
             </div>
@@ -306,15 +362,16 @@ export function StudentImportSection({ onBack }: StudentImportSectionProps) {
               </p>
             )}
             {renderResults(validation)}
+            <ImportProgressPanel progress={importProgress} />
             <div className="flex gap-2">
-              <Button size="sm" variant="ghost" onClick={() => setStep("Validate")}>
+              <Button size="sm" variant="ghost" onClick={() => setStep("Validate")} disabled={working}>
                 Re-validate
               </Button>
               <Button
                 size="sm"
                 variant="secondary"
-                loading={isLoading}
-                disabled={!validation || validation.valid === 0}
+                loading={working}
+                disabled={working || !validation || validation.valid === 0}
                 onClick={() => void runImport()}
               >
                 Import {validation?.valid ?? 0} student(s)

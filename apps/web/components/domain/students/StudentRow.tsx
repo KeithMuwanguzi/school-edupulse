@@ -13,7 +13,7 @@ import {
 } from "@/store/api/skulpulseApi";
 import { useToast } from "@/components/ui/Toast";
 import { useConfirm } from "@/components/ui/Dialog";
-import { STUDENT_NAME_LABELS } from "./studentOptions";
+import { STUDENT_NAME_LABELS, formatStudentFullName } from "./studentOptions";
 
 const compactControl = "h-7 text-[12px]";
 
@@ -116,7 +116,7 @@ export function StudentRow({ student, classes }: StudentRowProps) {
     }
   }
 
-  const fullName = `${student.first_name} ${student.last_name}`;
+  const fullName = formatStudentFullName(student);
 
   if (!editing) {
     return (

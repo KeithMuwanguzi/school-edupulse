@@ -16,6 +16,7 @@ import { useToast } from "@/components/ui/Toast";
 import {
   dayTermMarkers,
   daysInMonth,
+  eventsOnDay,
   firstWeekday,
   formatDisplayDate,
   formatShortDate,
@@ -27,15 +28,18 @@ import {
 } from "@/lib/calendarUtils";
 import { cn } from "@/lib/cn";
 import { parseError } from "@/lib/apiError";
-import type { AcademicYearWithTerms, TermOut } from "@/lib/types";
+import { termCalendarEventMeta } from "@/lib/termCalendarMeta";
+import type { AcademicYearWithTerms, TermCalendarEventOut, TermOut } from "@/lib/types";
 import {
   useActivateAcademicYearMutation,
   useActivateTermMutation,
   useCreateAcademicYearMutation,
   useListAcademicYearsQuery,
+  useListTermCalendarEventsQuery,
   useUpdateAcademicYearMutation,
   useUpdateTermMutation,
 } from "@/store/api/skulpulseApi";
+import { TermCalendarSection } from "@/components/domain/settings/TermCalendarSection";
 
 function termPalette(termNumber: number) {
   return TERM_PALETTE[(termNumber - 1) % TERM_PALETTE.length];
@@ -104,9 +108,11 @@ function YearTermAgenda({ terms }: { terms: TermOut[] }) {
 function YearMiniCalendar({
   yearLabel,
   terms,
+  events = [],
 }: {
   yearLabel: string;
   terms: TermOut[];
+  events?: TermCalendarEventOut[];
 }) {
   const calendarYear = Number.parseInt(yearLabel, 10) || new Date().getFullYear();
   const today = new Date();
@@ -122,7 +128,10 @@ function YearMiniCalendar({
     [terms],
   );
 
-  function dayTitle(markers: ReturnType<typeof dayTermMarkers<TermOut>>): string | undefined {
+  function dayTitle(
+    markers: ReturnType<typeof dayTermMarkers<TermOut>>,
+    dayEvents: TermCalendarEventOut[],
+  ): string | undefined {
     const parts: string[] = [];
     if (markers.starts.length) {
       parts.push(
@@ -137,6 +146,14 @@ function YearMiniCalendar({
     if (markers.inRange && !markers.starts.length && !markers.ends.length) {
       parts.push(
         `${markers.inRange.term.label}: ${formatShortDate(markers.inRange.term.starts_on)} – ${formatShortDate(markers.inRange.term.ends_on)}`,
+      );
+    }
+    if (dayEvents.length) {
+      parts.push(
+        ...dayEvents.map(
+          (e) =>
+            `${termCalendarEventMeta(e.event_type).label}: ${e.title} (${formatShortDate(e.starts_on)}${e.ends_on !== e.starts_on ? ` – ${formatShortDate(e.ends_on)}` : ""})`,
+        ),
       );
     }
     return parts.length ? parts.join(" · ") : undefined;
@@ -167,6 +184,13 @@ function YearMiniCalendar({
           <span className="h-4 w-4 rounded ring-2 ring-brand-500 ring-offset-1" />
           Today
         </span>
+        <span className="inline-flex items-center gap-1.5">
+          <span className="relative flex h-4 w-4 items-center justify-center rounded bg-slate-50 text-[8px] text-slate-600">
+            1
+            <span className="absolute bottom-0 left-1/2 h-1 w-1 -translate-x-1/2 rounded-full bg-violet-500" />
+          </span>
+          Programme event
+        </span>
       </div>
 
       <div className="hidden gap-3 sm:grid-cols-2 md:grid xl:grid-cols-3 2xl:grid-cols-4">
@@ -196,6 +220,7 @@ function YearMiniCalendar({
                 if (day === null) return <span key={`e-${label}-${idx}`} />;
                 const date = new Date(calendarYear, monthIndex, day);
                 const markers = dayTermMarkers(date, termRanges);
+                const dayEvents = eventsOnDay(date, events);
                 const isToday =
                   date.getDate() === today.getDate() &&
                   date.getMonth() === today.getMonth() &&
@@ -204,12 +229,15 @@ function YearMiniCalendar({
                 const isActiveTerm = inRange?.term.status === "active";
                 const isClosedTerm = inRange?.term.status === "closed";
                 const hasMarker =
-                  Boolean(inRange) || markers.starts.length > 0 || markers.ends.length > 0;
+                  Boolean(inRange) ||
+                  markers.starts.length > 0 ||
+                  markers.ends.length > 0 ||
+                  dayEvents.length > 0;
 
                 return (
                   <span
                     key={`${label}-${day}`}
-                    title={dayTitle(markers)}
+                    title={dayTitle(markers, dayEvents)}
                     className={cn(
                       "relative flex h-6 items-center justify-center rounded text-[10px] font-medium",
                       inRange && inRange.palette.soft,
@@ -238,6 +266,17 @@ function YearMiniCalendar({
                           "absolute bottom-0.5 right-0.5 h-1 w-1 rounded-full ring-1 ring-white/80",
                           r.palette.dot,
                         )}
+                      />
+                    ))}
+                    {dayEvents.slice(0, 3).map((ev, i) => (
+                      <span
+                        key={ev.id}
+                        aria-hidden
+                        className={cn(
+                          "absolute bottom-0 h-1 w-1 rounded-full ring-1 ring-white/80",
+                          termCalendarEventMeta(ev.event_type).dot,
+                        )}
+                        style={{ left: `calc(50% + ${(i - (Math.min(dayEvents.length, 3) - 1) / 2) * 4}px)` }}
                       />
                     ))}
                   </span>
@@ -433,6 +472,7 @@ function YearWorkspace({ year }: { year: AcademicYearWithTerms }) {
   const [yearStarts, setYearStarts] = useState(year.starts_on ?? "");
   const [yearEnds, setYearEnds] = useState(year.ends_on ?? "");
   const activeTerm = year.terms.find((t) => t.status === "active");
+  const { data: calendarEvents = [] } = useListTermCalendarEventsQuery({ yearId: year.id });
 
   useEffect(() => {
     setYearStarts(year.starts_on ?? "");
@@ -512,17 +552,19 @@ function YearWorkspace({ year }: { year: AcademicYearWithTerms }) {
         </div>
       </div>
 
+      <TermCalendarSection yearId={year.id} terms={year.terms} />
+
       <Card>
         <CardHeader
           title="Calendar view"
-          description={`Term dates across ${year.label}. Today is highlighted.`}
+          description={`Term dates and programme events across ${year.label}. Today is highlighted.`}
         />
         <CardBody>
           <div className="md:hidden">
             <YearTermAgenda terms={year.terms} />
           </div>
           <div className="hidden md:block">
-            <YearMiniCalendar yearLabel={year.label} terms={year.terms} />
+            <YearMiniCalendar yearLabel={year.label} terms={year.terms} events={calendarEvents} />
           </div>
         </CardBody>
       </Card>

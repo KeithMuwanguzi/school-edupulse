@@ -182,11 +182,27 @@ export const SETTINGS_SECTIONS: SettingsSection[] = [
     implemented: true,
   },
   {
+    key: "report-cards",
+    label: "Report cards",
+    href: "/app/settings/report-cards",
+    icon: "book",
+    description: "Layout template, sections, and document title for printed reports.",
+    implemented: true,
+  },
+  {
     key: "academic-year",
     label: "Academic year",
     href: "/app/settings/academic-year",
     icon: "calendar",
     description: "Terms, holidays, and the active academic calendar.",
+    implemented: true,
+  },
+  {
+    key: "circulars",
+    label: "Circulars",
+    href: "/app/settings/circulars",
+    icon: "chat",
+    description: "Parent notices — fees, events, closures, and school updates.",
     implemented: true,
   },
   {

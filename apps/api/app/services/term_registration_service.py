@@ -215,7 +215,7 @@ async def queue(
     class_id: UUID | None = None,
     stream_id: UUID | None = None,
     unassigned: bool = False,
-    limit: int = 100,
+    limit: int = 500,
 ) -> list[QueueItemOut]:
     term = await _resolve_term(session, tenant_id, term_id)
     section_outs, _ = await term_registration_config_service.get_active_config(
@@ -247,7 +247,12 @@ async def queue(
                 Student.student_number.ilike(needle),
             )
         )
-    stmt = stmt.order_by(Student.last_name, Student.first_name).limit(limit)
+    stmt = stmt.order_by(
+        Student.last_name,
+        func.coalesce(Student.middle_name, ""),
+        Student.first_name,
+        Student.id,
+    ).limit(limit)
     students = list(await session.scalars(stmt))
 
     regs = list(
@@ -285,6 +290,7 @@ async def queue(
                 student_id=student.id,
                 student_number=student.student_number,
                 first_name=student.first_name,
+                middle_name=student.middle_name,
                 last_name=student.last_name,
                 class_level=class_level,
                 class_label=class_label,

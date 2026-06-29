@@ -123,6 +123,7 @@ class TeacherImportRequest(BaseModel):
     rows: list[TeacherImportRow] = Field(min_length=1, max_length=500)
     default_password: str | None = Field(default=None, min_length=8, max_length=128)
     generate_passwords: bool = True
+    line_offset: int = Field(default=0, ge=0)
 
 
 class GuardianImportRequest(BaseModel):

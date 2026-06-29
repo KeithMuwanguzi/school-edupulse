@@ -1,4 +1,5 @@
 import type { RosterScope, RosterSummaryOut, RegisteredRosterSummaryOut } from "@/lib/types";
+import { ROSTER_PAGE_SIZE } from "@/lib/rosterConstants";
 
 export function defaultRosterScope(summary: RosterSummaryOut | undefined): RosterScope | null {
   if (!summary) return null;
@@ -42,9 +43,21 @@ export function scopeLabel(scope: RosterScope, summary: RosterSummaryOut | undef
   return cls.label ? `${cls.level} (${cls.label})` : cls.level;
 }
 
+/** Enrolled count for the current roster scope (from summary, not search-filtered). */
+export function rosterCountForScope(scope: RosterScope, summary: RosterSummaryOut): number {
+  if (scope.kind === "overview") return summary.total;
+  if (scope.kind === "unassigned") return summary.unassigned;
+  const cls = summary.classes.find((c) => c.class_id === scope.classId);
+  if (!cls) return 0;
+  if (scope.kind === "stream") {
+    return cls.streams.find((s) => s.stream_id === scope.streamId)?.count ?? 0;
+  }
+  return cls.count;
+}
+
 export function scopeToListParams(scope: RosterScope, q?: string) {
   if (scope.kind === "overview") return undefined;
-  const base = { limit: 100, q: q || undefined };
+  const base = { limit: ROSTER_PAGE_SIZE, q: q || undefined };
   if (scope.kind === "unassigned") return { ...base, unassigned: true };
   if (scope.kind === "stream") {
     return { ...base, classId: scope.classId, streamId: scope.streamId };
@@ -110,7 +123,22 @@ export function defaultRegisteredScope(
 }
 
 export function registeredScopeToListParams(scope: RosterScope, q?: string) {
-  const base = { limit: 100, q: q || undefined };
+  const base = { limit: 500, q: q || undefined };
+  if (scope.kind === "unassigned") return { ...base, unassigned: true };
+  if (scope.kind === "stream") {
+    return { ...base, classId: scope.classId, streamId: scope.streamId };
+  }
+  if (scope.kind === "class") return { ...base, classId: scope.classId };
+  return undefined;
+}
+
+/** Class/stream filters for roster export API calls. */
+export function exportScopeToApiParams(
+  scope: RosterScope,
+  q?: string,
+): { classId?: string; streamId?: string; unassigned?: boolean; q?: string } | undefined {
+  if (scope.kind === "overview") return undefined;
+  const base = { q: q?.trim() || undefined };
   if (scope.kind === "unassigned") return { ...base, unassigned: true };
   if (scope.kind === "stream") {
     return { ...base, classId: scope.classId, streamId: scope.streamId };

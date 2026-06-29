@@ -4,6 +4,7 @@ from __future__ import annotations
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, Query
+from fastapi.responses import Response
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.context import TenantContext
@@ -15,6 +16,7 @@ from app.schemas.reportcard import (
     ReportCardStudentOut,
 )
 from app.services import reportcard_service
+from app.services import report_card_pdf_service
 
 router = APIRouter(prefix="/tenant", tags=["tenant:reportcards"])
 
@@ -70,4 +72,26 @@ async def report_card_preview(
         ctx.tenant_id,
         student_id=student_id,
         term_id=term_id,
+    )
+
+
+@router.get("/reportcards/export/pdf")
+async def report_card_export_pdf(
+    student_id: UUID = Query(...),
+    term_id: UUID | None = None,
+    ctx: TenantContext = Depends(_staff),
+    _mod: TenantContext = Depends(_reportcards),
+    session: AsyncSession = Depends(get_session),
+) -> Response:
+    await apply_tenant_guc(session, ctx.tenant_id)
+    pdf_bytes = await report_card_pdf_service.render_pdf(
+        session,
+        ctx.tenant_id,
+        student_id=student_id,
+        term_id=term_id,
+    )
+    return Response(
+        content=pdf_bytes,
+        media_type="application/pdf",
+        headers={"Content-Disposition": 'attachment; filename="report-card.pdf"'},
     )

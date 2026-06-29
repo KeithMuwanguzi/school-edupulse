@@ -1,6 +1,7 @@
 """Student enrollment — Phase 2 §5."""
 from __future__ import annotations
 
+import json
 import base64
 import datetime as dt
 import re
@@ -42,18 +43,32 @@ from app.services.student_enrollment_validation import (
 STUDENT_NUMBER_RE = re.compile(r"^\d{4,20}$")
 
 
-def _encode_cursor(student_number: str, student_id: UUID) -> str:
-    raw = f"{student_number}:{student_id}"
-    return base64.urlsafe_b64encode(raw.encode()).decode()
+def _encode_cursor(last_name: str, middle_name: str | None, first_name: str, student_id: UUID) -> str:
+    payload = json.dumps(
+        {
+            "ln": last_name,
+            "mn": middle_name or "",
+            "fn": first_name,
+            "id": str(student_id),
+        },
+        separators=(",", ":"),
+    )
+    return base64.urlsafe_b64encode(payload.encode()).decode()
 
 
-def _decode_cursor(cursor: str) -> tuple[str, UUID]:
+def _decode_cursor(cursor: str) -> tuple[str, str, str, UUID]:
     raw = base64.urlsafe_b64decode(cursor.encode()).decode()
-    number, sid = raw.split(":", 1)
-    return number, UUID(sid)
+    data = json.loads(raw)
+    return data["ln"], data["mn"], data["fn"], UUID(data["id"])
 
 
-    return number, UUID(sid)
+def _student_name_order():
+    return (
+        Student.last_name,
+        func.coalesce(Student.middle_name, ""),
+        Student.first_name,
+        Student.id,
+    )
 
 
 def _teacher_scoped(role: str | None) -> bool:
@@ -378,7 +393,7 @@ async def list_students(
     tenant_id: UUID,
     *,
     cursor: str | None = None,
-    limit: int = 50,
+    limit: int = 15,
     class_id: UUID | None = None,
     stream_id: UUID | None = None,
     unassigned: bool = False,
@@ -396,10 +411,11 @@ async def list_students(
             raise ForbiddenError("Select a class to view its students.")
 
     limit = min(max(limit, 1), 100)
+    name_order = _student_name_order()
     stmt = (
         select(Student)
         .where(Student.tenant_id == tenant_id, Student.deleted_at.is_(None))
-        .order_by(Student.student_number, Student.id)
+        .order_by(*name_order)
     )
 
     if access is not None:
@@ -428,16 +444,25 @@ async def list_students(
         )
 
     if cursor:
-        c_num, c_id = _decode_cursor(cursor)
-        stmt = stmt.where(tuple_(Student.student_number, Student.id) > tuple_(c_num, c_id))
+        c_ln, c_mn, c_fn, c_id = _decode_cursor(cursor)
+        stmt = stmt.where(
+            tuple_(
+                Student.last_name,
+                func.coalesce(Student.middle_name, ""),
+                Student.first_name,
+                Student.id,
+            )
+            > tuple_(c_ln, c_mn, c_fn, c_id)
+        )
 
     rows = list(await session.scalars(stmt.limit(limit + 1)))
     has_more = len(rows) > limit
     page_rows = rows[:limit]
     items = [await _student_out(session, tenant_id, r) for r in page_rows]
-    next_cursor = (
-        _encode_cursor(page_rows[-1].student_number, page_rows[-1].id) if has_more else None
-    )
+    next_cursor = None
+    if has_more and page_rows:
+        last = page_rows[-1]
+        next_cursor = _encode_cursor(last.last_name, last.middle_name, last.first_name, last.id)
     return CursorPage(items=items, next_cursor=next_cursor, has_more=has_more)
 
 

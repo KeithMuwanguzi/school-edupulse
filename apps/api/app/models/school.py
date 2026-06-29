@@ -4,7 +4,7 @@ from __future__ import annotations
 import uuid
 
 from sqlalchemy import Boolean, ForeignKey, Integer, String, Text
-from sqlalchemy.dialects.postgresql import UUID as PGUUID
+from sqlalchemy.dialects.postgresql import JSONB, UUID as PGUUID
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.models.base import Base, SoftDeleteMixin, TimestampMixin, pg_enum, uuid_pk
@@ -79,6 +79,7 @@ class School(Base, TimestampMixin, SoftDeleteMixin):
 
     report_footer_notes: Mapped[str | None] = mapped_column(Text, nullable=True)
     report_next_term_note: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    report_card_layout: Mapped[dict] = mapped_column(JSONB, nullable=False, server_default="{}")
     student_number_next: Mapped[int] = mapped_column(Integer, nullable=False, default=1)
 
     version: Mapped[int] = mapped_column(Integer, nullable=False, default=1)

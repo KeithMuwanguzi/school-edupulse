@@ -116,7 +116,7 @@ async def roster_summary(
 @router.get("/students", response_model=CursorPage[StudentOut])
 async def list_students(
     cursor: str | None = Query(default=None),
-    limit: int = Query(default=50, ge=1, le=100),
+    limit: int = Query(default=15, ge=1, le=100),
     class_id: UUID | None = Query(default=None),
     stream_id: UUID | None = Query(default=None),
     unassigned: bool = Query(default=False),

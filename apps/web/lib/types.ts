@@ -103,7 +103,30 @@ export interface SchoolProfile {
   student_number_prefix?: string | null;
   report_footer_notes?: string | null;
   report_next_term_note?: string | null;
+  report_card_layout?: ReportCardLayoutConfig | null;
   version: number;
+}
+
+export type ReportCardTemplateId = "uneb_standard_v1" | "primary_simple_v1";
+
+export interface ReportCardSectionsConfig {
+  header: boolean;
+  assessment_matrix: boolean;
+  subject_performance: boolean;
+  summary_bar: boolean;
+  grading_key: boolean;
+  attendance: boolean;
+  teacher_comments: boolean;
+  footer: boolean;
+  signatures: boolean;
+  show_aggregate: boolean;
+}
+
+export interface ReportCardLayoutConfig {
+  template_id: ReportCardTemplateId;
+  document_title: string;
+  primary_color: string;
+  sections: ReportCardSectionsConfig;
 }
 
 export interface SchoolDetail {
@@ -256,6 +279,52 @@ export interface AcademicContext {
   academic_year?: AcademicYearOut | null;
   active_term?: TermOut | null;
   terms?: TermOut[];
+}
+
+export type TermCalendarEventType =
+  | "short_holiday"
+  | "visitation"
+  | "class_meeting"
+  | "sports_day"
+  | "exam_period"
+  | "opening_day"
+  | "closing_day"
+  | "other";
+
+export interface TermCalendarEventOut {
+  id: string;
+  academic_year_id: string;
+  term_id: string;
+  term_number: number;
+  term_label: string;
+  event_type: TermCalendarEventType;
+  title: string;
+  starts_on: string;
+  ends_on: string;
+  description?: string | null;
+}
+
+export type CircularStatus = "draft" | "published" | "archived";
+export type CircularAudience = "all_parents" | "class" | "stream";
+export type CircularPriority = "normal" | "important";
+
+export interface CircularOut {
+  id: string;
+  title: string;
+  body: string;
+  status: CircularStatus;
+  audience: CircularAudience;
+  priority: CircularPriority;
+  class_id?: string | null;
+  class_label?: string | null;
+  stream_id?: string | null;
+  stream_label?: string | null;
+  published_at?: string | null;
+  published_by?: string | null;
+  attachment_filename?: string | null;
+  has_attachment: boolean;
+  created_at: string;
+  updated_at: string;
 }
 
 export type NcdcCycle = "ecd" | "cycle_1" | "cycle_2" | "cycle_3";
@@ -793,6 +862,7 @@ export interface RegistrationQueueItemOut {
   student_id: string;
   student_number: string;
   first_name: string;
+  middle_name?: string | null;
   last_name: string;
   class_level?: string | null;
   class_label?: string | null;
@@ -852,6 +922,7 @@ export interface RegisteredStudentOut {
   student_id: string;
   student_number: string;
   first_name: string;
+  middle_name?: string | null;
   last_name: string;
   class_level?: string | null;
   class_label?: string | null;
@@ -998,6 +1069,7 @@ export interface ReportCardFooterOut {
 }
 
 export interface ReportCardPreviewOut {
+  layout?: ReportCardLayoutConfig | null;
   school: ReportCardSchoolBranding;
   student: ReportCardStudentOut;
   term: ReportCardTermOut;

@@ -1,36 +1,133 @@
+"use client";
+
 /**
- * Client-side report-card export helpers.
- *
- * Individual export renders an on-screen card element to an A4 PDF.
- * Class export renders each learner's card off-screen, then bundles every PDF
- * into a ZIP with a folder named after the class.
- *
- * Heavy libraries (html2canvas, jspdf, jszip) are imported dynamically so they
- * never bloat the initial bundle or run during SSR.
+ * Report card PDF export — always re-renders the same React preview at full A4
+ * size, then captures with html-to-image (browser-native layout, WYSIWYG).
  */
+import { createElement } from "react";
 import type { ReportCardPreviewOut } from "@/lib/types";
-import { REPORT_CARD_A4_WIDTH_MM } from "./reportCardConstants";
+import { reportCardFontClassName } from "@/lib/reportCardFonts";
+import { REPORT_CARD_A4_WIDTH_PX } from "./reportCardConstants";
 
 const A4_WIDTH_MM = 210;
 const A4_HEIGHT_MM = 297;
+const CAPTURE_PIXEL_RATIO = 2;
 
 function sanitizeName(value: string): string {
   return value.replace(/[\\/:*?"<>|]+/g, "-").replace(/\s+/g, " ").trim() || "report";
 }
 
-async function elementToCanvas(element: HTMLElement): Promise<HTMLCanvasElement> {
-  const { default: html2canvas } = await import("html2canvas");
-  return html2canvas(element, {
-    scale: 2,
-    useCORS: true,
-    backgroundColor: "#ffffff",
-    logging: false,
+async function waitForImages(root: HTMLElement): Promise<void> {
+  const imgs = [...root.querySelectorAll("img")];
+  await Promise.all(
+    imgs.map((img) =>
+      img.complete
+        ? Promise.resolve()
+        : new Promise<void>((resolve) => {
+            img.onload = () => resolve();
+            img.onerror = () => resolve();
+          }),
+    ),
+  );
+}
+
+async function waitForLayout(): Promise<void> {
+  await new Promise<void>((resolve) => {
+    requestAnimationFrame(() => requestAnimationFrame(() => resolve()));
   });
+  await new Promise((r) => setTimeout(r, 100));
+}
+
+/** Mount a full-size report card off-screen (no viewport scaling). */
+async function mountReportCard(
+  data: ReportCardPreviewOut,
+  host: HTMLElement,
+): Promise<{ target: HTMLElement; cleanup: () => void }> {
+  host.className = reportCardFontClassName;
+  host.replaceChildren();
+
+  const { createRoot } = await import("react-dom/client");
+  const { ReportCardPreview } = await import("./ReportCardPreview");
+  const root = createRoot(host);
+
+  await new Promise<void>((resolve) => {
+    root.render(createElement(ReportCardPreview, { data }));
+    requestAnimationFrame(() => requestAnimationFrame(() => resolve()));
+  });
+
+  if (document.fonts?.ready) {
+    await document.fonts.ready;
+  }
+  await waitForImages(host);
+  await waitForLayout();
+
+  const target = host.querySelector(".report-card-print") as HTMLElement | null;
+  if (!target) {
+    root.unmount();
+    throw new Error("Report card did not render for export.");
+  }
+
+  target.classList.add("report-card-exporting");
+
+  return {
+    target,
+    cleanup: () => {
+      root.unmount();
+      host.replaceChildren();
+    },
+  };
+}
+
+async function captureElementToCanvas(target: HTMLElement): Promise<HTMLCanvasElement> {
+  const { toCanvas } = await import("html-to-image");
+  try {
+    return await toCanvas(target, {
+      pixelRatio: CAPTURE_PIXEL_RATIO,
+      cacheBust: true,
+      backgroundColor: "#ffffff",
+      fetchRequestInit: { mode: "cors", credentials: "include" },
+    });
+  } catch {
+    // Fallback if foreignObject capture fails (e.g. restricted images).
+    const { default: html2canvas } = await import("html2canvas");
+    return html2canvas(target, {
+      scale: CAPTURE_PIXEL_RATIO,
+      useCORS: true,
+      allowTaint: false,
+      backgroundColor: "#ffffff",
+      logging: false,
+    });
+  }
+}
+
+/** Render preview data at full A4 and capture to canvas. */
+export async function captureReportCardCanvas(data: ReportCardPreviewOut): Promise<HTMLCanvasElement> {
+  const host = document.createElement("div");
+  Object.assign(host.style, {
+    position: "fixed",
+    left: "-10000px",
+    top: "0",
+    width: `${REPORT_CARD_A4_WIDTH_PX}px`,
+    background: "#ffffff",
+    overflow: "visible",
+  });
+  document.body.appendChild(host);
+
+  try {
+    const { target, cleanup } = await mountReportCard(data, host);
+    try {
+      return await captureElementToCanvas(target);
+    } finally {
+      cleanup();
+    }
+  } finally {
+    host.remove();
+  }
 }
 
 async function canvasToPdfBlob(canvas: HTMLCanvasElement): Promise<Blob> {
   const { default: jsPDF } = await import("jspdf");
-  const pdf = new jsPDF({ orientation: "portrait", unit: "mm", format: "a4" });
+  const pdf = new jsPDF({ orientation: "portrait", unit: "mm", format: "a4", compress: true });
   const imgData = canvas.toDataURL("image/png");
   const ratio = canvas.height / canvas.width;
   let renderW = A4_WIDTH_MM;
@@ -40,7 +137,7 @@ async function canvasToPdfBlob(canvas: HTMLCanvasElement): Promise<Blob> {
     renderW = renderH / ratio;
   }
   const offsetX = (A4_WIDTH_MM - renderW) / 2;
-  pdf.addImage(imgData, "PNG", offsetX, 0, renderW, renderH, undefined, "FAST");
+  pdf.addImage(imgData, "PNG", offsetX, 0, renderW, renderH, undefined, "SLOW");
   return pdf.output("blob");
 }
 
@@ -55,29 +152,14 @@ function triggerDownload(blob: Blob, filename: string): void {
   setTimeout(() => URL.revokeObjectURL(url), 1000);
 }
 
-/** Export a single report-card element to a downloaded PDF (always full A4). */
-export async function exportElementToPdf(
-  element: HTMLElement,
+/** Export one learner's report card — matches on-screen preview exactly. */
+export async function exportReportCardToPdf(
+  data: ReportCardPreviewOut,
   filename: string,
 ): Promise<void> {
-  const page = element.closest(".report-card-page") ?? element;
-  const host = document.createElement("div");
-  host.style.position = "fixed";
-  host.style.left = "-10000px";
-  host.style.top = "0";
-  host.style.width = REPORT_CARD_A4_WIDTH_MM;
-  host.style.background = "#ffffff";
-  document.body.appendChild(host);
-  const clone = page.cloneNode(true) as HTMLElement;
-  host.appendChild(clone);
-  await new Promise((r) => setTimeout(r, 80));
-  try {
-    const canvas = await elementToCanvas(clone.querySelector(".report-card-print") as HTMLElement ?? clone);
-    const blob = await canvasToPdfBlob(canvas);
-    triggerDownload(blob, filename.endsWith(".pdf") ? filename : `${filename}.pdf`);
-  } finally {
-    host.remove();
-  }
+  const canvas = await captureReportCardCanvas(data);
+  const blob = await canvasToPdfBlob(canvas);
+  triggerDownload(blob, filename.endsWith(".pdf") ? filename : `${filename}.pdf`);
 }
 
 export interface ClassExportItem {
@@ -92,16 +174,12 @@ export interface ClassExportProgress {
   currentName: string;
 }
 
-/**
- * Render each learner's report card off-screen and bundle the resulting PDFs
- * into a ZIP under a folder named after the class.
- */
+/** Bundle one PDF per learner into a ZIP folder. */
 export async function exportClassZip(
   items: ClassExportItem[],
   options: {
     className: string;
     termLabel: string;
-    renderCard: (data: ReportCardPreviewOut, host: HTMLElement) => Promise<() => void>;
     onProgress?: (p: ClassExportProgress) => void;
   },
 ): Promise<void> {
@@ -110,34 +188,16 @@ export async function exportClassZip(
   const folderName = sanitizeName(`${options.className} - ${options.termLabel}`);
   const folder = zip.folder(folderName) ?? zip;
 
-  // Off-screen host kept in the DOM (off-canvas) so layout/fonts resolve.
-  const host = document.createElement("div");
-  host.style.position = "fixed";
-  host.style.left = "-10000px";
-  host.style.top = "0";
-  host.style.width = REPORT_CARD_A4_WIDTH_MM;
-  host.style.background = "#ffffff";
-  document.body.appendChild(host);
-
-  try {
-    let done = 0;
-    for (const item of items) {
-      options.onProgress?.({ done, total: items.length, currentName: item.display_name });
-      const cleanup = await options.renderCard(item.data, host);
-      // Allow images/fonts to settle before capture.
-      await new Promise((r) => setTimeout(r, 120));
-      const target = (host.querySelector(".report-card-print") as HTMLElement) ?? host;
-      const canvas = await elementToCanvas(target);
-      const blob = await canvasToPdfBlob(canvas);
-      folder.file(`${sanitizeName(item.display_name)}.pdf`, blob);
-      cleanup();
-      done += 1;
-      options.onProgress?.({ done, total: items.length, currentName: item.display_name });
-    }
-
-    const archive = await zip.generateAsync({ type: "blob" });
-    triggerDownload(archive, `${folderName}.zip`);
-  } finally {
-    host.remove();
+  let done = 0;
+  for (const item of items) {
+    options.onProgress?.({ done, total: items.length, currentName: item.display_name });
+    const canvas = await captureReportCardCanvas(item.data);
+    const blob = await canvasToPdfBlob(canvas);
+    folder.file(`${sanitizeName(item.display_name)}.pdf`, blob);
+    done += 1;
+    options.onProgress?.({ done, total: items.length, currentName: item.display_name });
   }
+
+  const archive = await zip.generateAsync({ type: "blob" });
+  triggerDownload(archive, `${folderName}.zip`);
 }

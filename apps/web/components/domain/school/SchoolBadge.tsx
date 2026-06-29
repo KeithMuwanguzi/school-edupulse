@@ -37,6 +37,7 @@ export function SchoolBadge({ name, badgeUrl, size = "md", className }: SchoolBa
       <img
         src={src}
         alt={`${name} badge`}
+        crossOrigin="anonymous"
         onError={() => setBroken(true)}
         className={cn("shrink-0 object-contain bg-white ring-1 ring-slate-200/80", box, className)}
       />

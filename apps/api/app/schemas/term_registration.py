@@ -185,6 +185,7 @@ class QueueItemOut(BaseModel):
     student_id: UUID
     student_number: str
     first_name: str
+    middle_name: str | None = None
     last_name: str
     class_level: str | None = None
     class_label: str | None = None
@@ -247,6 +248,7 @@ class RegisteredStudentOut(BaseModel):
     student_id: UUID
     student_number: str
     first_name: str
+    middle_name: str | None = None
     last_name: str
     class_level: str | None = None
     class_label: str | None = None

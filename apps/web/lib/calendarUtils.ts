@@ -121,4 +121,24 @@ export function dayTermMarkers<T extends { id: string; label: string; status: st
   return { inRange, starts, ends };
 }
 
+/** True when `date` falls on or between start/end (inclusive, calendar days). */
+export function dateInRange(date: Date, start: Date, end: Date): boolean {
+  const day = new Date(date.getFullYear(), date.getMonth(), date.getDate()).getTime();
+  const from = new Date(start.getFullYear(), start.getMonth(), start.getDate()).getTime();
+  const to = new Date(end.getFullYear(), end.getMonth(), end.getDate()).getTime();
+  return day >= from && day <= to;
+}
+
+export function eventsOnDay<T extends { starts_on: string; ends_on: string }>(
+  date: Date,
+  events: T[],
+): T[] {
+  return events.filter((ev) => {
+    const start = parseIsoDate(ev.starts_on);
+    const end = parseIsoDate(ev.ends_on);
+    if (!start || !end) return false;
+    return dateInRange(date, start, end);
+  });
+}
+
 export { MONTHS };

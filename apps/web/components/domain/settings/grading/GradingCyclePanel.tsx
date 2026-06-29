@@ -13,6 +13,8 @@ import { cn } from "@/lib/cn";
 import { parseError } from "@/lib/apiError";
 import {
   defaultScaleNameForCycle,
+  markRangeTemplateLabel,
+  MARK_RANGE_GRADE_BANDS,
   scaleTemplateLabel,
   UNEB_PLE_GRADE_BANDS,
 } from "@/lib/gradingTemplates";
@@ -200,11 +202,11 @@ export function GradingCyclePanel({ section }: { section: CycleGradingSectionOut
     }
   }
 
-  async function addTemplateScale() {
+  async function addTemplateScale(bands = UNEB_PLE_GRADE_BANDS, toastSuffix = "UNEB D1–F9 bands") {
     const name = scaleName.trim() || defaultScaleNameForCycle(cycle);
     try {
       const scale = await createScale({ name, ncdc_cycle: section.cycle }).unwrap();
-      for (const band of UNEB_PLE_GRADE_BANDS) {
+      for (const band of bands) {
         await createRange({
           scaleId: scale.id,
           body: {
@@ -218,11 +220,15 @@ export function GradingCyclePanel({ section }: { section: CycleGradingSectionOut
       }
       setScaleName("");
       setExpandedScaleId(scale.id);
-      toast(`"${name}" created with UNEB D1–F9 bands.`, "success");
+      toast(`"${name}" created with ${toastSuffix}.`, "success");
     } catch (err) {
       const p = parseError(err);
       toast(p.message, "error", p.requestId);
     }
+  }
+
+  async function addMarkRangeTemplateScale() {
+    await addTemplateScale(MARK_RANGE_GRADE_BANDS, "mark-range bands");
   }
 
   async function assignAllToDefault() {
@@ -374,16 +380,20 @@ export function GradingCyclePanel({ section }: { section: CycleGradingSectionOut
             <Button size="sm" variant="secondary" loading={templateBusy} onClick={() => void addBlankScale()}>
               Blank scale
             </Button>
-            <Button size="sm" loading={templateBusy} onClick={() => void addTemplateScale()}>
+            <Button size="sm" loading={templateBusy} onClick={() => void addMarkRangeTemplateScale()}>
               <Icon name="spark" size={13} />
+              {markRangeTemplateLabel(cycle)}
+            </Button>
+            <Button size="sm" variant="secondary" loading={templateBusy} onClick={() => void addTemplateScale()}>
               {scaleTemplateLabel(cycle)}
             </Button>
           </div>
 
           {section.scales.length === 0 ? (
             <p className="text-[11px] text-slate-500">
-              Start with the <span className="font-medium">{scaleTemplateLabel(cycle)}</span> button — it pre-fills
-              D1 (90–100, weight 1) through F9 (0–39, weight 9). You can edit every band after.
+              Start with <span className="font-medium">{markRangeTemplateLabel(cycle)}</span> for
+              report-card mark bands, or <span className="font-medium">{scaleTemplateLabel(cycle)}</span>{" "}
+              when you also need PLE aggregate divisions on the Aggregate tab.
             </p>
           ) : (
             <div className="space-y-3">

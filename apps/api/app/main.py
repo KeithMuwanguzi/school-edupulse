@@ -26,6 +26,7 @@ from app.routers.tenant import assessment as tenant_assessment
 from app.routers.tenant import admissions as tenant_admissions
 from app.routers.tenant import academic as tenant_academic
 from app.routers.tenant import attendance as tenant_attendance
+from app.routers.tenant import circulars as tenant_circulars
 from app.routers.tenant import classes as tenant_classes
 from app.routers.tenant import modules as tenant_modules
 from app.routers.tenant import ple as tenant_ple
@@ -92,6 +93,7 @@ def create_app() -> FastAPI:
     app.include_router(platform_system.router, prefix=API_PREFIX)
     app.include_router(tenant_school.router, prefix=API_PREFIX)
     app.include_router(tenant_academic.router, prefix=API_PREFIX)
+    app.include_router(tenant_circulars.router, prefix=API_PREFIX)
     app.include_router(tenant_subjects.router, prefix=API_PREFIX)
     app.include_router(tenant_classes.router, prefix=API_PREFIX)
     app.include_router(tenant_users.router, prefix=API_PREFIX)

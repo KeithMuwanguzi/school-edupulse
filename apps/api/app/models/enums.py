@@ -59,6 +59,34 @@ class TermStatus(str, enum.Enum):
     closed = "closed"
 
 
+class TermCalendarEventType(str, enum.Enum):
+    short_holiday = "short_holiday"
+    visitation = "visitation"
+    class_meeting = "class_meeting"
+    sports_day = "sports_day"
+    exam_period = "exam_period"
+    opening_day = "opening_day"
+    closing_day = "closing_day"
+    other = "other"
+
+
+class CircularStatus(str, enum.Enum):
+    draft = "draft"
+    published = "published"
+    archived = "archived"
+
+
+class CircularAudience(str, enum.Enum):
+    all_parents = "all_parents"
+    class_ = "class"
+    stream = "stream"
+
+
+class CircularPriority(str, enum.Enum):
+    normal = "normal"
+    important = "important"
+
+
 class NcdcCycle(str, enum.Enum):
     """NCDC curriculum cycle — ECD nursery and primary (§2.3)."""
     ecd = "ecd"  # Baby, Middle, Top — early childhood
@@ -111,6 +139,10 @@ PG_ENUM_NAMES = {
     UserType: "user_type",
     AcademicYearStatus: "academic_year_status",
     TermStatus: "term_status",
+    TermCalendarEventType: "term_calendar_event_type",
+    CircularStatus: "circular_status",
+    CircularAudience: "circular_audience",
+    CircularPriority: "circular_priority",
     NcdcCycle: "ncdc_cycle",
     ClassLevel: "class_level",
     AttendanceStatus: "attendance_status",

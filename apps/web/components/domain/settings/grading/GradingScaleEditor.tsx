@@ -85,17 +85,22 @@ function RangeRow({ scaleId, range }: { scaleId: string; range: GradeRangeOut })
         <Input value={draft.label} onChange={(e) => setDraft((d) => ({ ...d, label: e.target.value }))} className={`w-16 ${compact}`} />
       </td>
       <td className="px-2 py-2">
-        <Select
-          value={draft.aggregate_weight}
-          onChange={(e) => applyAggregate(Number(e.target.value))}
-          className={`w-20 ${compact}`}
-        >
-          {AGGREGATE_GRADE_OPTIONS.map((o) => (
-            <option key={o.weight} value={o.weight}>
-              {o.weight}
-            </option>
-          ))}
-        </Select>
+        {editMarks ? (
+          <div className="flex items-center gap-1">
+            <Input type="number" value={draft.min_mark} onChange={(e) => setDraft((d) => ({ ...d, min_mark: e.target.value }))} className={`w-14 ${compact}`} />
+            <span className="text-slate-300">–</span>
+            <Input type="number" value={draft.max_mark} onChange={(e) => setDraft((d) => ({ ...d, max_mark: e.target.value }))} className={`w-14 ${compact}`} />
+          </div>
+        ) : (
+          <button
+            type="button"
+            className="text-[11px] font-medium text-slate-700 underline-offset-2 hover:text-brand-700 hover:underline"
+            onClick={() => setEditMarks(true)}
+            title="Adjust score range that maps to this grade"
+          >
+            {formatMarkRange(Number(draft.min_mark), Number(draft.max_mark))}
+          </button>
+        )}
       </td>
       <td className="px-2 py-2">
         <Input
@@ -106,22 +111,18 @@ function RangeRow({ scaleId, range }: { scaleId: string; range: GradeRangeOut })
         />
       </td>
       <td className="px-2 py-2">
-        {editMarks ? (
-          <div className="flex items-center gap-1">
-            <Input type="number" value={draft.min_mark} onChange={(e) => setDraft((d) => ({ ...d, min_mark: e.target.value }))} className={`w-14 ${compact}`} />
-            <span className="text-slate-300">–</span>
-            <Input type="number" value={draft.max_mark} onChange={(e) => setDraft((d) => ({ ...d, max_mark: e.target.value }))} className={`w-14 ${compact}`} />
-          </div>
-        ) : (
-          <button
-            type="button"
-            className="text-[11px] text-slate-500 underline-offset-2 hover:text-brand-700 hover:underline"
-            onClick={() => setEditMarks(true)}
-            title="Adjust score range that maps to this aggregate grade"
-          >
-            {formatMarkRange(Number(draft.min_mark), Number(draft.max_mark))}
-          </button>
-        )}
+        <Select
+          value={draft.aggregate_weight}
+          onChange={(e) => applyAggregate(Number(e.target.value))}
+          className={`w-20 ${compact}`}
+          title="PLE aggregate weight (optional for lower primary)"
+        >
+          {AGGREGATE_GRADE_OPTIONS.map((o) => (
+            <option key={o.weight} value={o.weight}>
+              {o.weight}
+            </option>
+          ))}
+        </Select>
       </td>
       <td className="px-2 py-2 text-right">
         <div className="flex justify-end gap-1">
@@ -238,9 +239,9 @@ export function GradingScaleEditor({ scale }: { scale: GradingScaleOut }) {
   return (
     <div className="space-y-4">
       <p className="text-[11px] text-slate-500">
-        UNEB grades are defined by <span className="font-medium text-slate-700">aggregate points 1–9</span> (1 = D1, best).
-        Each aggregate maps to a score range for marking; descriptors (Excellent, Good, etc.) appear on subject rows.
-        Report-card teacher remarks are on the Aggregate tab.
+        Define <span className="font-medium text-slate-700">mark ranges</span> first — each band maps a
+        score % to a grade label and descriptor on report cards. Aggregate weights (1–9) are used for PLE
+        totals; teacher remarks by division are on the Aggregate tab.
       </p>
 
       <div className="flex flex-wrap items-end gap-2">
@@ -269,9 +270,9 @@ export function GradingScaleEditor({ scale }: { scale: GradingScaleOut }) {
             <thead>
               <tr className="border-b border-slate-100 bg-slate-50/70 text-left text-[10px] font-semibold uppercase tracking-wide text-slate-400">
                 <th className="px-2 py-2">Grade</th>
-                <th className="px-2 py-2">Aggregate</th>
-                <th className="px-2 py-2">Descriptor</th>
                 <th className="px-2 py-2">Score range</th>
+                <th className="px-2 py-2">Descriptor</th>
+                <th className="px-2 py-2">Agg</th>
                 <th className="px-2 py-2 text-right">Actions</th>
               </tr>
             </thead>
@@ -291,15 +292,15 @@ export function GradingScaleEditor({ scale }: { scale: GradingScaleOut }) {
       <div className="rounded-lg border border-slate-100 bg-slate-50/40 p-3 space-y-3">
         <p className="text-[10px] font-semibold uppercase tracking-wide text-slate-400">Add grade band</p>
         <div className="flex flex-wrap items-end gap-2">
-          <FormField label="Aggregate" required>
+          <FormField label="Mark range preset" required>
             <Select
               value={newAggregate}
               onChange={(e) => setNewAggregate(e.target.value)}
-              className={`w-36 ${compact}`}
+              className={`w-44 ${compact}`}
             >
               {AGGREGATE_GRADE_OPTIONS.map((o) => (
                 <option key={o.weight} value={o.weight} disabled={usedWeights.has(o.weight)}>
-                  {o.weight} · {o.label} · {o.comment}
+                  {o.label} · {o.markRange} · {o.comment}
                 </option>
               ))}
             </Select>
