@@ -116,6 +116,9 @@ async def create_user(
     role = await _resolve_role(session, body.role_key)
 
     if body.role_key == "parent":
+        from app.services.parent_portal_accounts import assert_can_manage_parent_credentials
+
+        await assert_can_manage_parent_credentials(session, tenant_id)
         if not body.login_id:
             raise ValidationError(
                 "Parent accounts require the student's number as the login ID."

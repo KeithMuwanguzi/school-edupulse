@@ -95,6 +95,12 @@ async def authenticate_tenant(
     ):
         raise InvalidCredentialsError("Invalid username or password.")
 
+    role = await session.scalar(select(Role).where(Role.id == user.role_id))
+    if role and role.role_key == "parent":
+        from app.services.parent_portal_accounts import assert_parent_portal_login_allowed
+
+        await assert_parent_portal_login_allowed(session, tenant.id)
+
     # Keep the code→tenant lookup warm (§4.1).
     await cache_service.set_cached_tenant_id(school_code, tenant.id)
     return user, tenant

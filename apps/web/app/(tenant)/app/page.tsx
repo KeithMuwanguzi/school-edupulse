@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { ParentDashboardView } from "@/components/domain/parent/ParentDashboardView";
 import { Icon } from "@/components/ui/Icon";
 import { Badge } from "@/components/ui/Badge";
 import { EmptyState } from "@/components/ui/EmptyState";
@@ -13,7 +14,6 @@ import {
   useAttendanceSummaryQuery,
   useGetTenantSchoolQuery,
   useListClassesQuery,
-  useListCircularInboxQuery,
   useListSubjectsQuery,
   useRosterSummaryQuery,
 } from "@/store/api/skulpulseApi";
@@ -211,8 +211,11 @@ export default function TenantDashboard() {
   );
   const { data: classes } = useListClassesQuery(undefined, { skip: !isAdmin });
   const { data: subjects } = useListSubjectsQuery(undefined, { skip: !isAdmin });
-  const { data: parentCirculars = [] } = useListCircularInboxQuery(undefined, { skip: !isParent });
   const { evaluation: setup } = useSchoolSetup(isAdmin);
+
+  if (isParent) {
+    return <ParentDashboardView userName={user?.name} />;
+  }
 
   const subscribed = sortModulesByCatalog(moduleKeys.filter((m) => m !== "core"));
   const progress = termProgress(ctx?.active_term?.starts_on, ctx?.active_term?.ends_on);
@@ -377,49 +380,6 @@ export default function TenantDashboard() {
 
         {/* Right rail */}
         <section className="lg:col-span-1 space-y-4">
-          {isParent ? (
-            <div className="rounded-xl border border-slate-200/80 bg-white shadow-card">
-              <div className="flex items-center justify-between gap-3 border-b border-slate-100 px-4 py-3">
-                <div className="flex items-center gap-2.5">
-                  <span className="flex h-6 w-6 items-center justify-center rounded-md bg-brand-50 text-brand-600 ring-1 ring-brand-100">
-                    <Icon name="chat" size={13} />
-                  </span>
-                  <h3 className="text-[12px] font-semibold tracking-tight text-slate-900">
-                    School circulars
-                  </h3>
-                </div>
-                <Link
-                  href="/app/circulars"
-                  className="text-[11px] font-medium text-brand-600 hover:text-brand-700"
-                >
-                  View all
-                </Link>
-              </div>
-              <div className="px-4 py-3">
-                {parentCirculars.length === 0 ? (
-                  <p className="text-[11px] text-slate-500">No notices from school yet.</p>
-                ) : (
-                  <ul className="space-y-2">
-                    {parentCirculars.slice(0, 3).map((c) => (
-                      <li key={c.id}>
-                        <Link
-                          href="/app/circulars"
-                          className="block rounded-lg px-2 py-1.5 transition hover:bg-slate-50"
-                        >
-                          <span className="block truncate text-[11.5px] font-medium text-slate-800">
-                            {c.title}
-                          </span>
-                          {c.priority === "important" ? (
-                            <span className="text-[10px] font-medium text-amber-700">Important</span>
-                          ) : null}
-                        </Link>
-                      </li>
-                    ))}
-                  </ul>
-                )}
-              </div>
-            </div>
-          ) : null}
           {isAdmin ? (
             <div className="rounded-xl border border-slate-200/80 bg-white shadow-card">
               <div className="flex items-center justify-between gap-3 border-b border-slate-100 px-4 py-3">

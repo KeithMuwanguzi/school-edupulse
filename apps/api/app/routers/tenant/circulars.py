@@ -26,6 +26,10 @@ async def list_circular_inbox(
     ctx: TenantContext = Depends(get_tenant_context),
     session: AsyncSession = Depends(get_session),
 ) -> list[CircularOut]:
+    if ctx.role == "parent" and "parents_portal" not in ctx.modules:
+        from app.services.parent_portal_accounts import ParentPortalUnavailableError
+
+        raise ParentPortalUnavailableError()
     await apply_tenant_guc(session, ctx.tenant_id)
     return await circular_service.list_inbox(
         session, ctx.tenant_id, ctx.user_id, ctx.role

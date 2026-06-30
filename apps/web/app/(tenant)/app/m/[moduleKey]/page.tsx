@@ -1,16 +1,25 @@
 "use client";
 
-import { useParams } from "next/navigation";
+import { useParams, useRouter } from "next/navigation";
+import { useEffect } from "react";
 import { ComingSoonPanel } from "@/components/domain/ComingSoonPanel";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { Icon } from "@/components/ui/Icon";
 import { moduleIcon, moduleLabel } from "@/lib/moduleMeta";
+import { roleCanAccessModule } from "@/lib/roleAccess";
 import { useAppSelector } from "@/store/hooks";
 
 export default function ModulePlaceholderPage() {
   const { moduleKey } = useParams<{ moduleKey: string }>();
+  const router = useRouter();
   const user = useAppSelector((s) => s.auth.user);
+
+  useEffect(() => {
+    if (user?.role === "parent" && !roleCanAccessModule(user.role, moduleKey)) {
+      router.replace("/app");
+    }
+  }, [moduleKey, router, user?.role]);
 
   const subscribed = user?.modules.includes(moduleKey);
   const label = moduleLabel(moduleKey);

@@ -8,6 +8,7 @@ import {
   sortModulesByCatalog,
 } from "@/lib/moduleMeta";
 import { roleCanAccessModule } from "@/lib/roleAccess";
+import { buildParentNavGroups } from "@/lib/parentNav";
 
 interface TenantNavUser {
   modules: string[];
@@ -118,6 +119,10 @@ function moduleNavItem(key: string): NavItem {
 
 /** Build grouped sidebar navigation from the user's subscribed modules (§7.2). */
 export function buildTenantNavGroups(user: TenantNavUser): NavGroup[] {
+  if (user.role === "parent") {
+    return buildParentNavGroups(user);
+  }
+
   const groups: NavGroup[] = [
     {
       items: [{ label: "Dashboard", href: "/app", icon: "home", exact: true }],

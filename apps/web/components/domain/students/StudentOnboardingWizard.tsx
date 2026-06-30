@@ -13,9 +13,11 @@ import { PageLoader } from "@/components/ui/Spinner";
 import { SettingsHint } from "@/components/layout/settingsUi";
 import { cn } from "@/lib/cn";
 import { parseError } from "@/lib/apiError";
+import { schoolHasParentsPortal } from "@/lib/parentPortal";
 import {
   useCreateStudentMutation,
   useGetAdmissionApplicationQuery,
+  useGetTenantModulesQuery,
   useHostelOptionsQuery,
   useLinkAdmissionEnrollmentMutation,
   useListClassesQuery,
@@ -78,6 +80,8 @@ export function StudentOnboardingWizard({
   const router = useRouter();
   const { toast } = useToast();
   const hostelEnabled = useAppSelector((s) => s.auth.user?.modules.includes("hostel") ?? false);
+  const { data: tenantModules } = useGetTenantModulesQuery();
+  const parentPortalEnabled = schoolHasParentsPortal(tenantModules?.modules);
   const { data: classes = [] } = useListClassesQuery();
   const { data: application, isLoading: loadingApplication } = useGetAdmissionApplicationQuery(
     applicationId!,
@@ -300,12 +304,13 @@ export function StudentOnboardingWizard({
       if (applicationId) {
         await linkEnrollment({ applicationId, studentId: created.id }).unwrap();
       }
-      toast(
-        applicationId
-          ? `${created.first_name} ${created.last_name} enrolled from application.`
-          : `${created.first_name} ${created.last_name} enrolled.`,
-        "success",
-      );
+      let successMessage = applicationId
+        ? `${created.first_name} ${created.last_name} enrolled from application.`
+        : `${created.first_name} ${created.last_name} enrolled.`;
+      if (created.portal_account) {
+        successMessage += ` Portal login ${created.portal_account.username} created — share password securely with all guardians.`;
+      }
+      toast(successMessage, "success");
       router.push(`/app/m/students/${created.id}`);
     } catch (err) {
       const p = parseError(err);
@@ -366,8 +371,9 @@ export function StudentOnboardingWizard({
         {step === 0 && (
           <div className="space-y-3">
             <SettingsHint>
-              The student number is generated automatically on save (unique per school) and
-              becomes the guardian portal username.
+              {parentPortalEnabled
+                ? "The student number is generated on save and becomes the shared guardian portal username. A portal login is created automatically when you add at least one guardian."
+                : "The student number is generated automatically on save (unique per school). Guardian portal logins require the Parent Portal module under Settings → Modules."}
             </SettingsHint>
             <div className="grid gap-2.5 sm:grid-cols-2 lg:grid-cols-3">
               <FormField label={STUDENT_NAME_LABELS.last_name} required>

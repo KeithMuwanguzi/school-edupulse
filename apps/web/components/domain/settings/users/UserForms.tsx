@@ -19,9 +19,10 @@ const compactControl = "h-7 text-[12px]";
 
 interface UserAddPanelProps {
   schoolCode: string;
+  parentPortalEnabled?: boolean;
 }
 
-export function UserAddPanel({ schoolCode }: UserAddPanelProps) {
+export function UserAddPanel({ schoolCode, parentPortalEnabled = false }: UserAddPanelProps) {
   const { toast } = useToast();
   const { data: roles = [] } = useListTenantRolesQuery();
   const [createUser, { isLoading }] = useCreateTenantUserMutation();
@@ -31,6 +32,12 @@ export function UserAddPanel({ schoolCode }: UserAddPanelProps) {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [allowedModules, setAllowedModules] = useState<string[] | null>(null);
+
+  const assignableRoles = useMemo(
+    () =>
+      parentPortalEnabled ? roles : roles.filter((r) => r.role_key !== "parent"),
+    [parentPortalEnabled, roles],
+  );
 
   const isParent = roleKey === "parent";
   const { data: nextLogin } = useNextLoginIdQuery(undefined, { skip: isParent });
@@ -88,7 +95,7 @@ export function UserAddPanel({ schoolCode }: UserAddPanelProps) {
             onChange={(e) => setRoleKey(e.target.value)}
             className={compactControl}
           >
-            {roles.map((r) => (
+            {assignableRoles.map((r) => (
               <option key={r.role_key} value={r.role_key}>
                 {r.name}
               </option>

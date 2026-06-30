@@ -240,6 +240,9 @@ async def import_guardians(
     default_password: str | None,
     generate_passwords: bool,
 ) -> ImportUsersResponse:
+    from app.services.parent_portal_accounts import assert_can_manage_parent_credentials
+
+    await assert_can_manage_parent_credentials(session, tenant_id)
     school_code = await _school_code(session, tenant_id)
     parent_role = await _resolve_role(session, "parent")
     taken_logins = {

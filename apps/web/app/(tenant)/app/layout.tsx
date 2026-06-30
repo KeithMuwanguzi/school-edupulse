@@ -20,7 +20,9 @@ export default function TenantLayout({ children }: { children: React.ReactNode }
   if (!ready || !user) return <PageLoader />;
 
   const isSchoolAdmin = user.role === "school_admin";
+  const isParent = user.role === "parent";
   const displayName = school?.profile.name ?? user.tenant?.school_code ?? "SkulPulse";
+  const brandSubtitle = isParent ? "Parent portal" : "School portal";
 
   const navGroups = buildTenantNavGroups(user);
   const topBarPills = [];
@@ -36,7 +38,7 @@ export default function TenantLayout({ children }: { children: React.ReactNode }
     <AppShell
       brand={displayName}
       brandLogoUrl={school?.profile.badge_url}
-      brandSubtitle="School portal"
+      brandSubtitle={brandSubtitle}
       homeHref="/app"
       navGroups={navGroups}
       userName={user.name}

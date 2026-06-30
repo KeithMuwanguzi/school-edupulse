@@ -91,7 +91,12 @@ async def test_create_user_auto_login_id(client, admin_headers):
 
 
 async def test_create_parent_requires_login_id(client, admin_headers):
-    headers = await _headers(client, admin_headers, "USR3B")
+    headers, _ = await onboard_and_login(
+        client,
+        admin_headers,
+        "USR3B",
+        module_keys=["core", "students", "academics", "parents_portal"],
+    )
     resp = await client.post(
         "/api/v1/tenant/users",
         json={
@@ -442,7 +447,7 @@ async def test_import_guardians_uses_student_number_login(client, admin_headers)
         client,
         admin_headers,
         "IMP3",
-        module_keys=["core", "students", "academics"],
+        module_keys=["core", "students", "academics", "parents_portal"],
     )
     code = onboard["school_code"]
     class_id = (
@@ -494,7 +499,7 @@ async def test_import_guardians_skips_existing(client, admin_headers):
         client,
         admin_headers,
         "IMP4",
-        module_keys=["core", "students", "academics"],
+        module_keys=["core", "students", "academics", "parents_portal"],
     )
     code = onboard["school_code"]
     class_id = (

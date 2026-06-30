@@ -479,6 +479,46 @@ export interface GuardianLinkOut {
   email?: string | null;
 }
 
+export interface ParentPortalAccountOut {
+  username: string;
+  temporary_password: string;
+  auto_created: boolean;
+}
+
+export interface ParentGuardianContactOut {
+  relationship: string;
+  full_name: string;
+  is_primary: boolean;
+}
+
+export interface ParentChildOut {
+  id: string;
+  student_number: string;
+  first_name: string;
+  last_name: string;
+  preferred_name?: string | null;
+  class_label?: string | null;
+  stream_name?: string | null;
+  photo_url?: string | null;
+  status: string;
+}
+
+export interface ParentFeeSummaryOut {
+  term_label: string;
+  balance_ugx: number;
+  status: string;
+  is_overdue: boolean;
+}
+
+export interface ParentPortalOverviewOut {
+  portal_username: string;
+  child: ParentChildOut;
+  guardians: ParentGuardianContactOut[];
+  attendance_rate?: number | null;
+  fee?: ParentFeeSummaryOut | null;
+  circular_count: number;
+}
+
 export interface StudentOut {
   id: string;
   student_number: string;
@@ -512,6 +552,7 @@ export interface StudentOut {
   is_active: boolean;
   guardian?: GuardianLinkOut | null;
   guardian_count: number;
+  portal_account?: ParentPortalAccountOut | null;
 }
 
 export interface StudentGuardianOut {

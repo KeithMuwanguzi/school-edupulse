@@ -1,8 +1,11 @@
 "use client";
 
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { SettingsFilterPills, SettingsHint } from "@/components/layout/settingsUi";
+import { ParentPortalUpsellBanner } from "@/components/domain/parent/ParentPortalUpsellBanner";
 import { Card, CardBody, CardHeader } from "@/components/ui/Card";
+import { schoolHasParentsPortal } from "@/lib/parentPortal";
+import { useGetTenantModulesQuery } from "@/store/api/skulpulseApi";
 import { ImportGuardiansPanel, ImportTeachersPanel } from "./ImportPanels";
 import { UserAddPanel } from "./UserForms";
 
@@ -27,7 +30,17 @@ interface UserAddSectionProps {
 }
 
 export function UserAddSection({ schoolCode, onBack }: UserAddSectionProps) {
+  const { data: tenantModules } = useGetTenantModulesQuery();
+  const portalEnabled = schoolHasParentsPortal(tenantModules?.modules);
   const [mode, setMode] = useState<AddUserMode>("single");
+
+  const modes = useMemo(
+    () =>
+      portalEnabled
+        ? ADD_MODES
+        : ADD_MODES.filter((m) => m.id !== "import-guardians"),
+    [portalEnabled],
+  );
 
   return (
     <Card>
@@ -45,15 +58,20 @@ export function UserAddSection({ schoolCode, onBack }: UserAddSectionProps) {
         }
       />
       <CardBody className="space-y-3">
+        {!portalEnabled ? <ParentPortalUpsellBanner compact /> : null}
         <SettingsFilterPills
-          options={ADD_MODES}
+          options={modes}
           active={mode}
           onChange={(id) => setMode(id as AddUserMode)}
         />
         <SettingsHint>{MODE_HINTS[mode]}</SettingsHint>
-        {mode === "single" && <UserAddPanel schoolCode={schoolCode} />}
+        {mode === "single" && (
+          <UserAddPanel schoolCode={schoolCode} parentPortalEnabled={portalEnabled} />
+        )}
         {mode === "import-staff" && <ImportTeachersPanel schoolCode={schoolCode} />}
-        {mode === "import-guardians" && <ImportGuardiansPanel schoolCode={schoolCode} />}
+        {mode === "import-guardians" && portalEnabled && (
+          <ImportGuardiansPanel schoolCode={schoolCode} />
+        )}
       </CardBody>
     </Card>
   );

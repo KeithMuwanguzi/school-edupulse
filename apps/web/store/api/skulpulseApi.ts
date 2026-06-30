@@ -29,6 +29,7 @@ import type {
   Me,
   ModuleCatalogItem,
   PortalUser,
+  ParentPortalOverviewOut,
   RequestLogItem,
   SchoolDetail,
   SchoolCodeSuggestion,
@@ -164,7 +165,7 @@ function idempotent(): FetchArgs["headers"] {
 export const skulpulseApi = createApi({
   reducerPath: "skulpulseApi",
   baseQuery: baseQueryWithReauth,
-  tagTypes: ["Schools", "School", "Me", "TenantSchool", "TenantModules", "AcademicCalendar", "TermCalendar", "Circulars", "HrPayroll", "Subjects", "Classes", "TenantUsers", "Students", "Teachers", "Attendance", "Timetable", "TermRegistration", "Grading", "Admissions", "ReportCards", "Finance", "Assessment", "Ple", "Hostel", "PlatformAdmins"],
+  tagTypes: ["Schools", "School", "Me", "TenantSchool", "TenantModules", "AcademicCalendar", "TermCalendar", "Circulars", "ParentPortal", "HrPayroll", "Subjects", "Classes", "TenantUsers", "Students", "Teachers", "Attendance", "Timetable", "TermRegistration", "Grading", "Admissions", "ReportCards", "Finance", "Assessment", "Ple", "Hostel", "PlatformAdmins"],
   endpoints: (builder) => ({
     // --- Auth ---
     platformLogin: builder.mutation<TokenResponse, { email: string; password: string }>({
@@ -561,6 +562,41 @@ export const skulpulseApi = createApi({
     listCircularInbox: builder.query<CircularOut[], void>({
       query: () => "/tenant/circulars/inbox",
       providesTags: ["Circulars"],
+    }),
+    getParentOverview: builder.query<ParentPortalOverviewOut, void>({
+      query: () => "/tenant/parent/overview",
+      providesTags: ["ParentPortal"],
+    }),
+    getParentReportCardPreview: builder.query<
+      ReportCardPreviewOut,
+      { termId?: string } | void
+    >({
+      query: (params) => {
+        const p = new URLSearchParams();
+        if (params?.termId) p.set("term_id", params.termId);
+        const qs = p.toString();
+        return `/tenant/parent/report-card/preview${qs ? `?${qs}` : ""}`;
+      },
+      providesTags: ["ParentPortal", "ReportCards"],
+    }),
+    getParentReportCardPdf: builder.query<Blob, { termId?: string } | void>({
+      query: (params) => {
+        const p = new URLSearchParams();
+        if (params?.termId) p.set("term_id", params.termId);
+        const qs = p.toString();
+        return {
+          url: `/tenant/parent/report-card/pdf${qs ? `?${qs}` : ""}`,
+          responseHandler: (response) => response.blob(),
+        };
+      },
+    }),
+    listParentFees: builder.query<FeeInvoiceOut[], void>({
+      query: () => "/tenant/parent/fees",
+      providesTags: ["ParentPortal", "Finance"],
+    }),
+    getParentFeeInvoice: builder.query<FeeInvoiceDetailOut, string>({
+      query: (invoiceId) => `/tenant/parent/fees/${invoiceId}`,
+      providesTags: (_r, _e, id) => [{ type: "ParentPortal", id }, { type: "Finance", id }],
     }),
     getCircular: builder.query<CircularOut, string>({
       query: (circularId) => `/tenant/circulars/${circularId}`,
@@ -2092,6 +2128,11 @@ export const {
   useDeleteTermCalendarEventMutation,
   useListCircularsQuery,
   useListCircularInboxQuery,
+  useGetParentOverviewQuery,
+  useGetParentReportCardPreviewQuery,
+  useLazyGetParentReportCardPdfQuery,
+  useListParentFeesQuery,
+  useGetParentFeeInvoiceQuery,
   useCreateCircularMutation,
   useUpdateCircularMutation,
   usePublishCircularMutation,

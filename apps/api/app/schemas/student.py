@@ -233,6 +233,12 @@ class GuardianLinkOut(BaseModel):
     email: str | None = None
 
 
+class ParentPortalAccountOut(BaseModel):
+    username: str
+    temporary_password: str
+    auto_created: bool = True
+
+
 class _StudentProfileFields(BaseModel):
     middle_name: str | None = Field(default=None, max_length=120)
     preferred_name: str | None = Field(default=None, max_length=120)
@@ -269,6 +275,7 @@ class StudentOut(_StudentProfileFields):
     hostel_room_name: str | None = None
     guardian: GuardianLinkOut | None = None
     guardian_count: int = 0
+    portal_account: ParentPortalAccountOut | None = None
 
 
 class StudentDetailOut(StudentOut):

@@ -591,7 +591,22 @@ async def create_student(
     if body.health is not None:
         await student_profile_service.upsert_health(session, tenant_id, row.id, body.health)
 
-    return await _student_out(session, tenant_id, row)
+    portal_account = None
+    if body.guardians:
+        primary = next((g for g in body.guardians if g.is_primary), body.guardians[0])
+        from app.services.parent_portal_accounts import ensure_parent_portal_account
+
+        portal_account = await ensure_parent_portal_account(
+            session,
+            tenant_id,
+            row,
+            guardian_name=primary.full_name,
+        )
+
+    out = await _student_out(session, tenant_id, row)
+    if portal_account is not None:
+        return out.model_copy(update={"portal_account": portal_account})
+    return out
 
 
 async def update_student(

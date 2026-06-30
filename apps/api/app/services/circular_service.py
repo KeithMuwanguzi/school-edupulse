@@ -12,9 +12,9 @@ from app.models.circular import Circular
 from app.models.enums import CircularAudience, CircularPriority, CircularStatus
 from app.models.school_class import ClassStream, SchoolClass
 from app.models.student import Student
-from app.models.user import Role, TenantUser
 from app.schemas.circular import CircularCreate, CircularOut, CircularUpdate
 from app.services import circular_attachment_service
+from app.services.parent_student import resolve_parent_student as _parent_student
 
 
 def _labels(
@@ -172,29 +172,7 @@ async def list_admin(
     return [await _hydrate_out(session, row) for row in rows]
 
 
-async def _parent_student(
-    session: AsyncSession,
-    tenant_id: UUID,
-    user_id: UUID,
-) -> Student | None:
-    user = await session.scalar(
-        select(TenantUser)
-        .join(Role, Role.id == TenantUser.role_id)
-        .where(
-            TenantUser.id == user_id,
-            TenantUser.tenant_id == tenant_id,
-            Role.role_key == "parent",
-        )
-    )
-    if user is None:
-        return None
-    return await session.scalar(
-        select(Student).where(
-            Student.tenant_id == tenant_id,
-            Student.student_number == user.login_id,
-            Student.deleted_at.is_(None),
-        )
-    )
+from app.services.parent_portal_service import resolve_parent_student as _parent_student
 
 
 def _matches_audience(
