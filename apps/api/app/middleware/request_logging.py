@@ -14,11 +14,14 @@ import json
 import time
 import uuid
 
+import random
+
 from starlette.types import ASGIApp, Message, Receive, Scope, Send
 
 from app.core.config import settings
 from app.core.context import set_request_id, set_tenant_context
 from app.core.logging import get_logger
+from app.core.metrics import inc, observe
 from app.core.security import sha256_hex
 from app.services.logging_service import persist_request_log
 
@@ -153,7 +156,33 @@ class RequestLoggingMiddleware:
             error_code=state.get("error_code"),
             ip=ip,
         )
-        await persist_request_log(fields)
+        inc(
+            "http_requests_total",
+            labels={"status": str(status_code), "method": method},
+        )
+        observe(
+            "http_request_duration_seconds",
+            duration_ms / 1000.0,
+            labels={"method": method},
+        )
+        if status_code == 429:
+            inc("rate_limit_rejections_total", labels={"path": path})
+        if _should_persist_log(path, status_code):
+            await persist_request_log(fields)
+
+
+def _should_persist_log(path: str, status_code: int) -> bool:
+    """Sample request logs at scale; always persist errors."""
+    if status_code >= 400:
+        return True
+    if path.startswith("/api/v1/health"):
+        return False
+    rate = settings.request_log_sample_rate
+    if rate >= 1.0:
+        return True
+    if rate <= 0.0:
+        return False
+    return random.random() < rate
 
 
 async def _send_problem(send: Send, body: dict, request_id: str) -> None:

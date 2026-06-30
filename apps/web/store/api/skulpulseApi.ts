@@ -7,7 +7,7 @@ import {
   FetchBaseQueryError,
 } from "@reduxjs/toolkit/query/react";
 import { API_URL } from "@/lib/apiConfig";
-import { newRequestId, tokenStorage } from "@/lib/tokenStorage";
+import { newRequestId } from "@/lib/tokenStorage";
 import type { RootState } from "@/store";
 import { clearAuth, setAccessToken } from "@/store/slices/authSlice";
 import type {
@@ -105,6 +105,7 @@ import type {
 
 const rawBaseQuery = fetchBaseQuery({
   baseUrl: API_URL,
+  credentials: "include",
   prepareHeaders: (headers, { getState }) => {
     const token = (getState() as RootState).auth.accessToken;
     if (token) headers.set("Authorization", `Bearer ${token}`);
@@ -120,20 +121,16 @@ let refreshInFlight: Promise<boolean> | null = null;
 async function refreshOnce(api: BaseQueryApi, extraOptions: object): Promise<boolean> {
   if (!refreshInFlight) {
     refreshInFlight = (async () => {
-      const refresh = tokenStorage.getRefresh();
-      if (!refresh) return false;
       const res = await rawBaseQuery(
-        { url: "/auth/refresh", method: "POST", body: { refresh_token: refresh } },
+        { url: "/auth/refresh", method: "POST", body: {} },
         api,
         extraOptions,
       );
       const data = res.data as TokenResponse | undefined;
       if (data?.access_token) {
-        tokenStorage.setRefresh(data.refresh_token);
         api.dispatch(setAccessToken(data.access_token));
         return true;
       }
-      tokenStorage.clear();
       api.dispatch(clearAuth());
       return false;
     })().finally(() => {
@@ -176,8 +173,8 @@ export const skulpulseApi = createApi({
     tenantLogin: builder.mutation<TokenResponse, { username: string; password: string }>({
       query: (body) => ({ url: "/auth/tenant/login", method: "POST", body }),
     }),
-    logout: builder.mutation<void, { refresh_token: string }>({
-      query: (body) => ({ url: "/auth/logout", method: "POST", body }),
+    logout: builder.mutation<void, void>({
+      query: () => ({ url: "/auth/logout", method: "POST", body: {} }),
     }),
     getMe: builder.query<Me, void>({
       query: () => "/auth/me",

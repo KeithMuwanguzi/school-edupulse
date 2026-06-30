@@ -9,7 +9,11 @@ app.skulpulse.com {
 
 api.skulpulse.com {
 	encode gzip
-	reverse_proxy 127.0.0.1:5330
+	reverse_proxy 127.0.0.1:5330 {
+		health_uri /api/v1/health/ready
+		health_interval 10s
+		health_timeout 5s
+	}
 }
 
 skulpulse.com, www.skulpulse.com {

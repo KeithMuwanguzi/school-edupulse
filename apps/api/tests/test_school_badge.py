@@ -30,12 +30,12 @@ async def test_upload_and_fetch_badge(client, admin_headers):
     assert upload.status_code == 200, upload.text
     badge_url = upload.json()["profile"]["badge_url"]
     assert badge_url is not None
-    assert tenant_id in badge_url
+    assert "/branding/school/BDG01/badge" in badge_url
 
     school = await client.get(f"/api/v1/platform/schools/{tenant_id}", headers=admin_headers)
     assert school.json()["profile"]["badge_url"] == badge_url
 
-    public = await client.get(f"/api/v1/branding/{tenant_id}/badge")
+    public = await client.get("/api/v1/branding/school/BDG01/badge")
     assert public.status_code == 200
     assert public.headers["content-type"].startswith("image/")
 

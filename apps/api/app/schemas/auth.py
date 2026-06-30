@@ -3,7 +3,9 @@ from __future__ import annotations
 
 from uuid import UUID
 
-from pydantic import BaseModel, EmailStr, Field
+from pydantic import BaseModel, EmailStr, Field, field_validator
+
+from app.core.password_policy import validate_password_strength
 
 
 class PlatformLoginRequest(BaseModel):
@@ -17,12 +19,12 @@ class TenantLoginRequest(BaseModel):
 
 
 class RefreshRequest(BaseModel):
-    refresh_token: str
+    refresh_token: str | None = None
 
 
 class TokenResponse(BaseModel):
     access_token: str
-    refresh_token: str
+    refresh_token: str | None = None
     token_type: str = "bearer"
     expires_in: int  # access token lifetime in seconds
     must_change_password: bool = False
@@ -31,6 +33,12 @@ class TokenResponse(BaseModel):
 class ChangePasswordRequest(BaseModel):
     current_password: str = Field(min_length=1)
     new_password: str = Field(min_length=8, max_length=128)
+
+    @field_validator("new_password")
+    @classmethod
+    def check_password_strength(cls, value: str) -> str:
+        validate_password_strength(value)
+        return value
 
 
 class TenantSummary(BaseModel):

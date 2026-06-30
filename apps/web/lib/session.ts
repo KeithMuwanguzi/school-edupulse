@@ -20,7 +20,6 @@ export function useAuthGuard(
     if (status === "anonymous") {
       router.replace(loginPath);
     } else if (status === "authenticated" && user && user.type !== requiredType) {
-      // Wrong portal for this session — send to the correct home.
       router.replace(user.type === "platform_admin" ? "/admin" : "/app");
     }
   }, [status, user, requiredType, loginPath, router]);
@@ -39,15 +38,12 @@ export function useLogout(loginPath: string) {
   const [logout] = useLogoutMutation();
 
   return async () => {
-    const refresh = tokenStorage.getRefresh();
-    if (refresh) {
-      try {
-        await logout({ refresh_token: refresh }).unwrap();
-      } catch {
-        /* best effort */
-      }
+    tokenStorage.clearLegacyRefresh();
+    try {
+      await logout().unwrap();
+    } catch {
+      /* best effort */
     }
-    tokenStorage.clear();
     dispatch(clearAuth());
     router.replace(loginPath);
   };

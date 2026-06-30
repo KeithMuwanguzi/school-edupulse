@@ -10,36 +10,32 @@ import type { Me, TokenResponse } from "@/lib/types";
 import { ToastProvider } from "@/components/ui/Toast";
 import { DialogProvider } from "@/components/ui/Dialog";
 
-/** Restore a session on load by rotating the stored refresh token (§7.3). */
+/** Restore a session on load by rotating the HttpOnly refresh cookie (§7.3). */
 let bootstrapInFlight: Promise<void> | null = null;
 
 async function bootstrap(): Promise<void> {
   if (bootstrapInFlight) return bootstrapInFlight;
 
   bootstrapInFlight = (async () => {
-    const refresh = tokenStorage.getRefresh();
-    if (!refresh) {
-      store.dispatch(setAnonymous());
-      return;
-    }
+    tokenStorage.clearLegacyRefresh();
     try {
       const res = await fetch(`${API_URL}/auth/refresh`, {
         method: "POST",
+        credentials: "include",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ refresh_token: refresh }),
+        body: "{}",
       });
       if (!res.ok) throw new Error("refresh failed");
       const tokens = (await res.json()) as TokenResponse;
-      tokenStorage.setRefresh(tokens.refresh_token);
       store.dispatch(setAccessToken(tokens.access_token));
 
       const meRes = await fetch(`${API_URL}/auth/me`, {
+        credentials: "include",
         headers: { Authorization: `Bearer ${tokens.access_token}` },
       });
       if (!meRes.ok) throw new Error("me failed");
       store.dispatch(setUser((await meRes.json()) as Me));
     } catch {
-      tokenStorage.clear();
       store.dispatch(setAnonymous());
     }
   })().finally(() => {

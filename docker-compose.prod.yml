@@ -1,7 +1,8 @@
 # SkulPulse — production stack (standalone).
 #
-# Do NOT combine with docker-compose.yml on the server — that file is for local dev
-# and merge behaviour breaks ports/env (double bind on 5330, missing .env.docker).
+# Horizontal scaling:
+#   docker compose -f docker-compose.prod.yml up -d --scale api=3
+# Caddy proxies to api-lb (127.0.0.1:5330), which load-balances across api replicas.
 #
 # Usage (repo root on VPS):
 #   docker compose -f docker-compose.prod.yml up -d --build
@@ -9,9 +10,6 @@
 # First boot only:
 #   docker compose -f docker-compose.prod.yml run --rm api alembic upgrade head
 #   docker compose -f docker-compose.prod.yml run --rm api python -m scripts.seed
-#
-# Requires: apps/api/.env.production (see deploy/africloud/env.production.example)
-# Host Caddy proxies 127.0.0.1:5330 (api) and 127.0.0.1:3005 (web).
 
 name: skulpulse-prod
 
@@ -42,8 +40,8 @@ services:
       DB_NAME: skulpulse
       LISTEN_PORT: "6432"
       POOL_MODE: transaction
-      MAX_CLIENT_CONN: "1000"
-      DEFAULT_POOL_SIZE: "25"
+      MAX_CLIENT_CONN: "2000"
+      DEFAULT_POOL_SIZE: "50"
       AUTH_TYPE: scram-sha-256
       AUTH_QUERY: SELECT username, password FROM public.pgbouncer_get_auth($1)
     depends_on:
@@ -73,11 +71,10 @@ services:
     build:
       context: ./apps/api
       dockerfile: Dockerfile
-    container_name: skulpulse-prod-api
     env_file:
       - ./apps/api/.env.production
-    ports:
-      - "127.0.0.1:5330:8000"
+    environment:
+      API_WORKERS: ${API_WORKERS:-4}
     depends_on:
       postgres:
         condition: service_healthy
@@ -85,9 +82,33 @@ services:
         condition: service_healthy
       pgbouncer:
         condition: service_started
-    command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --workers 1
+    command: >
+      sh -c "uvicorn app.main:app --host 0.0.0.0 --port 8000 --workers $${API_WORKERS:-4}"
     volumes:
       - media_storage:/app/storage
+    healthcheck:
+      test: ["CMD-SHELL", "python -c \"import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/api/v1/health/ready')\""]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 30s
+    restart: unless-stopped
+
+  api-lb:
+    image: nginx:1.27-alpine
+    container_name: skulpulse-prod-api-lb
+    ports:
+      - "127.0.0.1:5330:80"
+    volumes:
+      - ./deploy/nginx/api-lb.conf:/etc/nginx/conf.d/default.conf:ro
+    depends_on:
+      api:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "nginx", "-t"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
     restart: unless-stopped
 
   web:
@@ -100,7 +121,8 @@ services:
     ports:
       - "127.0.0.1:3005:3000"
     depends_on:
-      - api
+      api-lb:
+        condition: service_healthy
     restart: unless-stopped
 
 volumes:

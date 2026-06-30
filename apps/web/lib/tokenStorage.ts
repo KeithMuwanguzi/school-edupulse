@@ -1,21 +1,13 @@
-// Refresh-token persistence. Phase 1: localStorage (Bearer flow is permitted by
-// §3). The access token lives only in Redux memory. Phase 2 should move the
-// refresh token to an httpOnly cookie (§12 XSS hygiene).
+// Refresh tokens are HttpOnly cookies set by the API (§12 XSS hygiene).
+// The access token lives only in Redux memory.
 
-const REFRESH_KEY = "skulpulse.refresh";
+const LEGACY_REFRESH_KEY = "skulpulse.refresh";
 
 export const tokenStorage = {
-  getRefresh(): string | null {
-    if (typeof window === "undefined") return null;
-    return window.localStorage.getItem(REFRESH_KEY);
-  },
-  setRefresh(token: string): void {
+  /** Remove legacy localStorage refresh tokens from Phase 1. */
+  clearLegacyRefresh(): void {
     if (typeof window === "undefined") return;
-    window.localStorage.setItem(REFRESH_KEY, token);
-  },
-  clear(): void {
-    if (typeof window === "undefined") return;
-    window.localStorage.removeItem(REFRESH_KEY);
+    window.localStorage.removeItem(LEGACY_REFRESH_KEY);
   },
 };
 

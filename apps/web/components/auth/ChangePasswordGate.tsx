@@ -6,7 +6,6 @@ import { Input } from "@/components/ui/Input";
 import { FormField } from "@/components/ui/FormField";
 import { Icon } from "@/components/ui/Icon";
 import { parseError } from "@/lib/apiError";
-import { tokenStorage } from "@/lib/tokenStorage";
 import { useAppDispatch } from "@/store/hooks";
 import { setAccessToken, setUser } from "@/store/slices/authSlice";
 import {
@@ -58,7 +57,6 @@ export function ChangePasswordGate({
         current_password: current,
         new_password: next,
       }).unwrap();
-      tokenStorage.setRefresh(tokens.refresh_token);
       dispatch(setAccessToken(tokens.access_token));
       const me = await fetchMe().unwrap();
       dispatch(setUser(me));

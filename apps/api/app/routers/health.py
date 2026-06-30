@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 from fastapi import APIRouter
+from fastapi.responses import JSONResponse
 from sqlalchemy import text
 
 from app.core.db import SessionLocal
@@ -16,16 +17,14 @@ async def health() -> dict:
 
 
 @router.get("/health/ready")
-async def ready() -> dict:
+async def ready() -> JSONResponse:
     checks: dict[str, str] = {}
-    # Postgres
     try:
         async with SessionLocal() as session:
             await session.execute(text("SELECT 1"))
         checks["postgres"] = "ok"
     except Exception as exc:  # noqa: BLE001
         checks["postgres"] = f"error: {type(exc).__name__}"
-    # Redis
     try:
         await redis_client.ping()
         checks["redis"] = "ok"
@@ -33,4 +32,7 @@ async def ready() -> dict:
         checks["redis"] = f"error: {type(exc).__name__}"
 
     healthy = all(v == "ok" for v in checks.values())
-    return {"status": "ok" if healthy else "degraded", "checks": checks}
+    return JSONResponse(
+        status_code=200 if healthy else 503,
+        content={"status": "ok" if healthy else "degraded", "checks": checks},
+    )

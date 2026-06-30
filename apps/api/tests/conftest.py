@@ -29,6 +29,8 @@ os.environ["LOG_JSON"] = "false"
 os.environ["PLATFORM_ADMIN_EMAIL"] = "admin@skulpulse.ug"
 os.environ["PLATFORM_ADMIN_PASSWORD"] = "TestAdmin!2025"
 os.environ["PLATFORM_ALLOW_DATA_RESET"] = "true"
+os.environ["RATE_LIMIT_API_ENABLED"] = "false"
+os.environ["REFRESH_COOKIE_ENABLED"] = "false"
 
 import asyncpg  # noqa: E402
 import pytest  # noqa: E402

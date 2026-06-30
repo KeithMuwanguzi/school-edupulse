@@ -11,6 +11,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import settings
 from app.core.errors import NotFoundError, ValidationError
+from app.models.platform import Tenant
 from app.models.school import School
 
 ALLOWED_CONTENT_TYPES = frozenset({"image/png", "image/jpeg", "image/webp"})
@@ -22,8 +23,8 @@ EXT_BY_TYPE = {
 }
 
 
-def badge_public_path(tenant_id: UUID, version: int) -> str:
-    return f"/api/v1/branding/{tenant_id}/badge?v={version}"
+def badge_public_path(school_code: str, version: int) -> str:
+    return f"/api/v1/branding/school/{school_code.upper()}/badge?v={version}"
 
 
 def badge_storage_dir(tenant_id: UUID) -> Path:
@@ -86,7 +87,9 @@ async def save_badge(
     target = directory / f"badge{ext}"
     target.write_bytes(data)
 
-    school.badge_url = badge_public_path(tenant_id, school.version + 1)
+    tenant = await session.get(Tenant, tenant_id)
+    code = tenant.school_code if tenant else str(tenant_id)
+    school.badge_url = badge_public_path(code, school.version + 1)
     school.version += 1
     await session.flush()
     return school

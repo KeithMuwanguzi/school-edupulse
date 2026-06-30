@@ -4,6 +4,9 @@
 #
 # Requires DNS A records pointing at this server's public IPv4.
 # Caddy obtains Let's Encrypt certificates automatically.
+#
+# API traffic goes to api-lb (nginx) which load-balances across scaled api containers.
+# Scale API: docker compose -f docker-compose.prod.yml up -d --scale api=3
 
 # --- Production ---
 app.skulpulse.com {
@@ -13,7 +16,11 @@ app.skulpulse.com {
 
 api.skulpulse.com {
 	encode gzip
-	reverse_proxy 127.0.0.1:5330
+	reverse_proxy 127.0.0.1:5330 {
+		health_uri /api/v1/health/ready
+		health_interval 10s
+		health_timeout 5s
+	}
 }
 
 # Apex + www → production app
@@ -29,5 +36,9 @@ staging.app.skulpulse.com {
 
 staging.api.skulpulse.com {
 	encode gzip
-	reverse_proxy 127.0.0.1:5331
+	reverse_proxy 127.0.0.1:5331 {
+		health_uri /api/v1/health/ready
+		health_interval 10s
+		health_timeout 5s
+	}
 }

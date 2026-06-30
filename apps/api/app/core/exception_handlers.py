@@ -26,6 +26,15 @@ def _endpoint(request: Request) -> str:
     return f"{request.method} {request.url.path}"
 
 
+def _rate_limit_headers(exc: AppError) -> dict[str, str] | None:
+    if exc.status_code != 429:
+        return None
+    retry_after = exc.extra.get("retry_after_seconds")
+    if retry_after:
+        return {"Retry-After": str(retry_after)}
+    return None
+
+
 async def app_error_handler(request: Request, exc: AppError) -> JSONResponse:
     request_id = get_request_id()
     state = _state(request)
@@ -51,7 +60,10 @@ async def app_error_handler(request: Request, exc: AppError) -> JSONResponse:
             }
         )
     return JSONResponse(
-        status_code=exc.status_code, content=body, media_type=PROBLEM_CONTENT_TYPE
+        status_code=exc.status_code,
+        content=body,
+        media_type=PROBLEM_CONTENT_TYPE,
+        headers=_rate_limit_headers(exc),
     )
 
 

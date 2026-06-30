@@ -13,9 +13,10 @@ from fastapi.middleware.cors import CORSMiddleware
 from app.core.config import settings
 from app.core.exception_handlers import register_exception_handlers
 from app.core.logging import configure_logging, get_logger
+from app.middleware.rate_limit import ApiRateLimitMiddleware
 from app.middleware.request_logging import RequestLoggingMiddleware
 from app.middleware.security import SecurityHeadersMiddleware
-from app.routers import auth, branding, health
+from app.routers import auth, branding, health, metrics
 from app.routers.platform import admins as platform_admins
 from app.routers.platform import geo as platform_geo
 from app.routers.platform import logs as platform_logs
@@ -51,19 +52,29 @@ API_PREFIX = "/api/v1"
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    issues = settings.validate_for_production()
+    if issues:
+        for issue in issues:
+            log.error("production_config_invalid", detail=issue)
+        raise RuntimeError(
+            "Production configuration invalid: " + "; ".join(issues)
+        )
     log.info("app.startup", environment=settings.environment)
     yield
     log.info("app.shutdown")
 
 
 def create_app() -> FastAPI:
+    openapi_url = None if settings.is_production else f"{API_PREFIX}/openapi.json"
+    docs_url = None if settings.is_production else f"{API_PREFIX}/docs"
+
     app = FastAPI(
         title="SkulPulse Uganda API",
         version="0.1.0",
         description="Multi-tenant SaaS for Ugandan primary schools (P1–P7).",
         lifespan=lifespan,
-        openapi_url=f"{API_PREFIX}/openapi.json",
-        docs_url=f"{API_PREFIX}/docs",
+        openapi_url=openapi_url,
+        docs_url=docs_url,
     )
 
     # Request logging is the OUTERMOST app middleware so it sees every request,
@@ -72,11 +83,18 @@ def create_app() -> FastAPI:
     app.add_middleware(CORSMiddleware,
         allow_origins=settings.cors_origin_list,
         allow_credentials=True,
-        allow_methods=["*"],
-        allow_headers=["*"],
-        expose_headers=["X-Request-ID"],
+        allow_methods=["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
+        allow_headers=[
+            "Authorization",
+            "Content-Type",
+            "X-Request-ID",
+            "Idempotency-Key",
+            "Accept",
+        ],
+        expose_headers=["X-Request-ID", "Retry-After"],
     )
     app.add_middleware(RequestLoggingMiddleware)
+    app.add_middleware(ApiRateLimitMiddleware)
     # Outermost: security headers on every response + body-size guard.
     app.add_middleware(SecurityHeadersMiddleware)
 
@@ -84,6 +102,7 @@ def create_app() -> FastAPI:
 
     # Routers
     app.include_router(health.router, prefix=API_PREFIX)
+    app.include_router(metrics.router, prefix=API_PREFIX)
     app.include_router(auth.router, prefix=API_PREFIX)
     app.include_router(branding.router, prefix=API_PREFIX)
     app.include_router(platform_schools.router, prefix=API_PREFIX)

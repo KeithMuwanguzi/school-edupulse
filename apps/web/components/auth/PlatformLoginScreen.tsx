@@ -10,7 +10,6 @@ import {
   AuthSubmit,
 } from "@/components/auth/AuthShell";
 import { parseError, ParsedError } from "@/lib/apiError";
-import { tokenStorage } from "@/lib/tokenStorage";
 import { useAppDispatch } from "@/store/hooks";
 import { setAccessToken, setUser } from "@/store/slices/authSlice";
 import { useLazyGetMeQuery, usePlatformLoginMutation } from "@/store/api/skulpulseApi";
@@ -31,7 +30,6 @@ export function PlatformLoginScreen() {
     setError(null);
     try {
       const tokens = await login({ email, password }).unwrap();
-      tokenStorage.setRefresh(tokens.refresh_token);
       dispatch(setAccessToken(tokens.access_token));
       const me = await fetchMe().unwrap();
       dispatch(setUser(me));

@@ -6,10 +6,13 @@ from datetime import datetime, timezone
 from fastapi import APIRouter, Depends, Response, Request
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.auth_response import finalize_logout_response, finalize_token_response
+from app.core.client_ip import client_ip
+from app.core.cookies import read_refresh_token
 from app.core.db import apply_tenant_guc, get_session
 from app.core.dependencies import Principal, get_principal
-from app.core.errors import ForbiddenError
-from app.core.rate_limit import enforce_login_limits
+from app.core.errors import ForbiddenError, TokenError
+from app.core.rate_limit import enforce_login_limits, enforce_refresh_limits
 from app.models.enums import ActorType, UserType
 from app.models.platform import PlatformAdmin, Tenant
 from app.models.user import Role, TenantUser
@@ -32,17 +35,14 @@ from app.services.subscription_service import (
 router = APIRouter(prefix="/auth", tags=["auth"])
 
 
-def _client_ip(request: Request) -> str | None:
-    return request.client.host if request.client else None
-
-
 @router.post("/platform/login", response_model=TokenResponse)
 async def platform_login(
     body: PlatformLoginRequest,
     request: Request,
+    response: Response,
     session: AsyncSession = Depends(get_session),
 ) -> TokenResponse:
-    await enforce_login_limits(_client_ip(request), body.email)
+    await enforce_login_limits(client_ip(request), body.email)
     admin = await auth_service.authenticate_platform(session, body.email, body.password)
     admin.last_login_at = datetime.now(timezone.utc)
     claims = await auth_service.build_claims(session, UserType.platform_admin, admin.id)
@@ -54,20 +54,21 @@ async def platform_login(
         action="auth.login",
         resource_type="platform_admin",
         resource_id=admin.id,
-        ip_address=_client_ip(request),
+        ip_address=client_ip(request),
         user_agent=request.headers.get("user-agent"),
     )
     await session.commit()
-    return tokens
+    return finalize_token_response(response, tokens)
 
 
 @router.post("/tenant/login", response_model=TokenResponse)
 async def tenant_login(
     body: TenantLoginRequest,
     request: Request,
+    response: Response,
     session: AsyncSession = Depends(get_session),
 ) -> TokenResponse:
-    await enforce_login_limits(_client_ip(request), body.username)
+    await enforce_login_limits(client_ip(request), body.username)
     user, tenant = await auth_service.authenticate_tenant(
         session, body.username, body.password
     )
@@ -83,31 +84,41 @@ async def tenant_login(
         action="auth.login",
         resource_type="tenant_user",
         resource_id=user.id,
-        ip_address=_client_ip(request),
+        ip_address=client_ip(request),
         user_agent=request.headers.get("user-agent"),
     )
     await session.commit()
-    return tokens
+    return finalize_token_response(response, tokens)
 
 
 @router.post("/refresh", response_model=TokenResponse)
 async def refresh(
-    body: RefreshRequest,
+    request: Request,
+    response: Response,
+    body: RefreshRequest | None = None,
     session: AsyncSession = Depends(get_session),
 ) -> TokenResponse:
-    tokens = await auth_service.rotate_tokens(session, body.refresh_token)
+    await enforce_refresh_limits(client_ip(request))
+    refresh_token = read_refresh_token(request, body.refresh_token if body else None)
+    if not refresh_token:
+        raise TokenError("Refresh token is required.")
+    tokens = await auth_service.rotate_tokens(session, refresh_token)
     await session.commit()
-    return tokens
+    return finalize_token_response(response, tokens)
 
 
 @router.post("/logout", status_code=204, response_class=Response)
 async def logout(
-    body: RefreshRequest,
+    request: Request,
+    response: Response,
+    body: RefreshRequest | None = None,
     session: AsyncSession = Depends(get_session),
 ) -> Response:
-    await auth_service.revoke_token(session, body.refresh_token)
-    await session.commit()
-    return Response(status_code=204)
+    refresh_token = read_refresh_token(request, body.refresh_token if body else None)
+    if refresh_token:
+        await auth_service.revoke_token(session, refresh_token)
+        await session.commit()
+    return finalize_logout_response(response)
 
 
 @router.get("/me", response_model=MeResponse)
@@ -126,7 +137,6 @@ async def me(
             must_change_password=admin.must_change_password,
         )
 
-    # Reading tenant_users requires the RLS GUC for this tenant.
     await apply_tenant_guc(session, principal.tenant_id)
     user = await session.get(TenantUser, principal.user_id)
     role = await session.get(Role, user.role_id)
@@ -153,6 +163,7 @@ async def me(
 async def tenant_change_password(
     body: ChangePasswordRequest,
     request: Request,
+    response: Response,
     principal: Principal = Depends(get_principal),
     session: AsyncSession = Depends(get_session),
 ) -> TokenResponse:
@@ -180,17 +191,18 @@ async def tenant_change_password(
         action="auth.password_changed",
         resource_type="tenant_user",
         resource_id=principal.user_id,
-        ip_address=_client_ip(request),
+        ip_address=client_ip(request),
         user_agent=request.headers.get("user-agent"),
     )
     await session.commit()
-    return tokens
+    return finalize_token_response(response, tokens)
 
 
 @router.post("/platform/change-password", response_model=TokenResponse)
 async def platform_change_password(
     body: ChangePasswordRequest,
     request: Request,
+    response: Response,
     principal: Principal = Depends(get_principal),
     session: AsyncSession = Depends(get_session),
 ) -> TokenResponse:
@@ -215,8 +227,8 @@ async def platform_change_password(
         action="auth.password_changed",
         resource_type="platform_admin",
         resource_id=principal.user_id,
-        ip_address=_client_ip(request),
+        ip_address=client_ip(request),
         user_agent=request.headers.get("user-agent"),
     )
     await session.commit()
-    return tokens
+    return finalize_token_response(response, tokens)

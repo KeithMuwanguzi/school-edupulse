@@ -327,8 +327,9 @@ async def change_password(
         raise NotFoundError("User not found.")
     if not verify_password(current_password, user.password_hash):
         raise ValidationError("Current password is incorrect.")
-    if len(new_password) < 8:
-        raise ValidationError("New password must be at least 8 characters.")
+    from app.core.password_policy import validate_password_strength
+
+    validate_password_strength(new_password)
     if verify_password(new_password, user.password_hash):
         raise ValidationError("New password must be different from the current password.")
 
