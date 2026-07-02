@@ -308,7 +308,11 @@ export function StudentOnboardingWizard({
         ? `${created.first_name} ${created.last_name} enrolled from application.`
         : `${created.first_name} ${created.last_name} enrolled.`;
       if (created.portal_account) {
-        successMessage += ` Portal login ${created.portal_account.username} created — share password securely with all guardians.`;
+        const emailed =
+          created.portal_account.emails_sent && created.portal_account.emails_sent > 0
+            ? ` Credentials emailed to ${created.portal_account.emails_sent} guardian(s).`
+            : " Share the portal password securely with all guardians.";
+        successMessage += ` Portal login ${created.portal_account.username} created.${emailed}`;
       }
       toast(successMessage, "success");
       router.push(`/app/m/students/${created.id}`);

@@ -237,6 +237,7 @@ class ParentPortalAccountOut(BaseModel):
     username: str
     temporary_password: str
     auto_created: bool = True
+    emails_sent: int = 0
 
 
 class _StudentProfileFields(BaseModel):

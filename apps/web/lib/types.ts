@@ -483,6 +483,7 @@ export interface ParentPortalAccountOut {
   username: string;
   temporary_password: string;
   auto_created: boolean;
+  emails_sent?: number;
 }
 
 export interface ParentGuardianContactOut {

@@ -299,13 +299,33 @@ async def import_guardians(
             await session.flush()
             taken_logins.add(number)
             created += 1
+            username = f"{number}@{school_code}"
+            child_name = f"{student.first_name} {student.last_name}".strip()
+            from app.services.parent_portal_accounts import notify_guardians_of_new_portal_account
+
+            emails_sent = await notify_guardians_of_new_portal_account(
+                session,
+                tenant_id,
+                student_id=student.id,
+                username=username,
+                password=password,
+                extra_emails=[str(row.email)] if row.email else None,
+                child_name=child_name,
+            )
+            message = None
+            if emails_sent:
+                message = "Credentials emailed to guardian(s)."
+            elif row.email:
+                message = "Email not sent — configure SMTP or share the password manually."
             results.append(
                 ImportRowResult(
                     line=i,
                     identifier=ident,
                     status="created",
-                    username=f"{number}@{school_code}",
-                    temporary_password=password if generate_passwords or default_password else None,
+                    username=username,
+                    temporary_password=password if not emails_sent else None,
+                    email_sent=emails_sent > 0,
+                    message=message,
                 )
             )
         except Exception as exc:

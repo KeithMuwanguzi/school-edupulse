@@ -13,6 +13,7 @@ from app.core.security import hash_password
 from app.models.enums import UserStatus, UserType
 from app.models.platform import Tenant
 from app.models.school import School
+from app.models.student import Student
 from app.models.user import RefreshToken, Role, TenantUser
 from app.schemas.tenant_user import (
     PasswordResetResponse,
@@ -161,7 +162,27 @@ async def create_user(
     session.add(user)
     await session.flush()
 
-    if body.role_key != "parent" and email:
+    if body.role_key == "parent":
+        from app.services.parent_portal_accounts import notify_guardians_of_new_portal_account
+
+        student = await session.scalar(
+            select(Student).where(
+                Student.tenant_id == tenant_id,
+                Student.student_number == login_id,
+                Student.deleted_at.is_(None),
+            )
+        )
+        if student is not None:
+            await notify_guardians_of_new_portal_account(
+                session,
+                tenant_id,
+                student_id=student.id,
+                username=f"{login_id}@{school_code}",
+                password=body.password,
+                extra_emails=[email] if email else None,
+                child_name=f"{student.first_name} {student.last_name}".strip(),
+            )
+    elif email:
         school_name = await session.scalar(
             select(School.name).where(School.tenant_id == tenant_id)
         )

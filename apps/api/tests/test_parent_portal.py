@@ -220,6 +220,7 @@ async def test_enrollment_auto_provisions_parent_portal_account(client, admin_he
             "relationship": "mother",
             "full_name": "Grace Mirembe",
             "phone_primary": "+256700999888",
+            "email": "grace.mirembe@example.com",
             "is_primary": True,
         }
     ]

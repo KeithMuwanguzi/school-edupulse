@@ -107,6 +107,41 @@ def _credentials_text(
     )
 
 
+async def send_guardian_portal_credentials(
+    *,
+    to: str,
+    school_name: str,
+    username: str,
+    password: str,
+    child_name: str | None = None,
+) -> bool:
+    child_label = child_name or "your child"
+    intro = (
+        f"A parent portal login for {child_label} at {school_name} is ready. "
+        "All guardians of this learner share the same username and password below."
+    )
+    subject = f"Parent portal access — {school_name}"
+    portal_url = settings.tenant_portal_url.rstrip("/")
+    return await send_email(
+        to=to,
+        subject=subject,
+        text=_credentials_text(
+            school_name=school_name,
+            username=username,
+            password=password,
+            portal_url=portal_url,
+            intro=intro,
+        ),
+        html=_credentials_html(
+            school_name=school_name,
+            username=username,
+            password=password,
+            portal_url=portal_url,
+            intro=intro,
+        ),
+    )
+
+
 async def send_portal_credentials(
     *,
     to: str,
